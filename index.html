@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salon de coiffure à Parakou, Albarika</title>
+<meta name="description" content="Salon de coiffure à Albarika, Parakou. Découvre les prestations et réserve ton rendez-vous en ligne.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="#accueil" id="brand">Salon de coiffure</a>
+  <nav class="menu" aria-label="Sections"><a href="#prestations">Prestations</a><a href="#galerie">Photos</a><a href="#reserver">Réserver</a><a href="#infos">Infos</a></nav>
+  <a class="btn small" href="#reserver">Réserver</a>
+</div></header>
+
+<main id="accueil">
+  <section class="hero"><div class="wrap">
+    <p class="eyebrow" id="where">Parakou · Albarika</p>
+    <h1 id="title">Salon de coiffure</h1>
+    <p class="lede">Réserve ton rendez-vous en ligne, choisis ta prestation et ton créneau. Le salon te confirme ensuite ta demande.</p>
+    <a class="btn" href="#reserver">Réserver un rendez-vous</a>
+  </div></section>
+
+  <section class="section alt" id="prestations"><div class="wrap">
+    <p class="eyebrow">Ce que nous faisons</p><h2>Les prestations</h2>
+    <div id="services" class="grid" style="margin-top:22px"></div>
+  </div></section>
+
+  <section class="section" id="galerie"><div class="wrap">
+    <p class="eyebrow">Notre travail</p><h2>Les photos</h2>
+    <div id="gallery" style="margin-top:22px"><div class="empty gallery-empty">Les photos du salon arrivent bientôt.</div></div>
+  </div></section>
+
+  <section class="section alt" id="reserver"><div class="wrap">
+    <p class="eyebrow">Rendez-vous</p><h2>Réserver en 4 étapes</h2>
+    <div class="steps" id="booking" style="margin-top:22px"></div>
+  </div></section>
+
+  <section class="section" id="infos"><div class="wrap">
+    <p class="eyebrow">Pratique</p><h2>Infos</h2>
+    <div class="info-grid" id="infos-grid" style="margin-top:22px"></div>
+  </div></section>
+</main>
+<footer><div class="wrap"><span id="foot">Salon de coiffure · Parakou</span></div></footer>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script src="common.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

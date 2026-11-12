@@ -1,0 +1,2 @@
+Mets ici les vraies photos du salon (JPG ou PNG, de préférence réduites à moins de 300 Ko chacune).
+Puis ajoute une ligne par photo dans le fichier config.js, dans la liste SALON_PHOTOS.
