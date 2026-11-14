@@ -2,7 +2,7 @@
 (function () {
   var h = U.h, API = SalonAPI;
   var settings = null, services = [];
-  var st = { service: null, date: null, slot: null, slots: [], busy: false };
+  var st = { service: null, date: null, slot: null, slots: [], busy: false, place: 'sur_place', address: '' };
   var box = document.getElementById('booking');
 
   var ERREURS = {
@@ -11,6 +11,9 @@
     NOM_INVALIDE: 'Écris ton nom (entre 2 et 80 caractères).',
     PRESTATION_INDISPONIBLE: "Cette prestation n'est plus disponible.",
     TROP_DE_RESERVATIONS: "Tu as déjà 3 rendez-vous à venir avec ce numéro. Contacte le salon pour en ajouter ou en modifier un.",
+    ADRESSE_REQUISE: 'Indique ton quartier ou un repère pour qu\'on puisse te trouver.',
+    DOMICILE_INDISPONIBLE: 'Le service à domicile n\'est pas disponible. Choisis « Sur place ».',
+    LIEU_INVALIDE: 'Choisis où aura lieu le rendez-vous.',
     TROP_DE_DEMANDES: 'Beaucoup de demandes en même temps. Réessaie dans quelques minutes.'
   };
   function errText(e) {
@@ -28,6 +31,7 @@
     document.getElementById('brand').textContent = name;
     document.getElementById('title').textContent = name;
     document.getElementById('where').textContent = where;
+    var lede = document.getElementById('lede'); if (lede) { lede.textContent = 'Réserve ton rendez-vous en ligne, choisis ta prestation et ton créneau. ' + name + ' te confirme ensuite ta demande.'; }
     document.getElementById('foot').textContent = name + ' · ' + (settings && settings.city || 'Parakou');
     document.title = name + ' à ' + (settings && settings.city || 'Parakou') + (settings && settings.district ? ', ' + settings.district : '');
   }
@@ -71,7 +75,8 @@
     g.appendChild(h('div', { class: 'card' }, [
       h('h3', { text: 'Où nous trouver' }),
       h('p', { text: [s.district, s.city].filter(Boolean).join(', ') }),
-      h('p', { class: 'muted', text: s.address ? s.address : "L'adresse exacte sera bientôt ajoutée." })
+      h('p', { class: 'muted', text: s.address ? s.address : (s.home_visits ? "L'adresse exacte est communiquée à la confirmation du rendez-vous." : "L'adresse exacte sera bientôt ajoutée.") }),
+      s.home_visits ? h('p', { text: 'Rendez-vous sur place ou à ton domicile, selon ta préférence. Tu le choisis en réservant.' }) : null
     ]));
     var contact = [h('h3', { text: 'Contact' })];
     var ph = U.digits(s.phone);
@@ -135,14 +140,27 @@
     var name = h('input', { id: 'f-name', type: 'text', autocomplete: 'name', maxlength: '80', placeholder: 'Ex : Aïcha' });
     var phone = h('input', { id: 'f-phone', type: 'tel', inputmode: 'tel', autocomplete: 'tel', placeholder: 'Ex : 229 01 23 45 67 89' });
     var btn = h('button', { type: 'submit', class: 'btn', id: 'f-send' }, ['Envoyer ma demande']);
+    var addr = h('input', { id: 'f-addr', type: 'text', maxlength: '200', autocomplete: 'street-address', placeholder: 'Ex : Albarika, près du marché, maison bleue', value: st.address || '' });
+    addr.addEventListener('input', function () { st.address = addr.value; });
+    var placeBox = null;
+    if (settings.home_visits) {
+      var pc = h('div', { class: 'chips' });
+      [['sur_place', 'Je viens sur place'], ['domicile', 'À mon domicile']].forEach(function (o) {
+        pc.appendChild(h('button', { type: 'button', class: 'chip', 'aria-pressed': st.place === o[0] ? 'true' : 'false', onclick: function () { st.place = o[0]; renderBooking(); } }, [o[1]]));
+      });
+      placeBox = h('div', { class: 'field' }, [h('label', { text: 'Où veux-tu ton rendez-vous ?' }), pc,
+        st.place === 'domicile' ? h('div', { class: 'field', style: 'margin-top:8px' }, [h('label', { for: 'f-addr', text: 'Ton quartier ou un repère' }), addr]) : null]);
+    }
     var recap = h('div', { class: 'recap' });
     if (st.service && st.slot) {
       recap.appendChild(h('div', {}, [h('b', { text: st.service.name })]));
       recap.appendChild(h('div', { text: U.fmtDate(U.fmtDay(st.slot), true) + ' à ' + U.fmtTime(st.slot) + ' (durée d\'environ ' + st.service.duration_min + ' min)' }));
+      if (settings.home_visits) { recap.appendChild(h('div', { text: st.place === 'domicile' ? 'Lieu : à ton domicile' + (st.address ? ' (' + st.address + ')' : '') : 'Lieu : sur place' })); }
       if (st.service.price_from_fcfa != null) { recap.appendChild(h('div', { class: 'muted', text: 'Prix : à partir de ' + U.fcfa(st.service.price_from_fcfa) + '. Le prix final est confirmé au salon. Paiement sur place.' })); }
     } else { recap.appendChild(h('div', { class: 'muted', text: 'Ton récapitulatif apparaîtra ici.' })); }
     var form = h('form', { novalidate: true, class: 'step', style: 'border:0;padding:0' }, [
       recap,
+      placeBox,
       h('div', { class: 'inline' }, [h('div', { class: 'field' }, [h('label', { for: 'f-name', text: 'Ton nom' }), name]), h('div', { class: 'field' }, [h('label', { for: 'f-phone', text: 'Ton numéro' }), phone])]),
       h('p', { class: 'muted', style: 'font-size:.9rem', text: "Ton nom et ton numéro servent seulement à gérer ton rendez-vous. Ta demande est ensuite confirmée par le salon." }),
       msg, btn
@@ -166,8 +184,9 @@
     var nm = nameEl.value.trim(), ph = U.digits(phoneEl.value);
     if (nm.length < 2) { msg.className = 'msg bad'; msg.textContent = ERREURS.NOM_INVALIDE; nameEl.focus(); return; }
     if (ph.length < 8 || ph.length > 15) { msg.className = 'msg bad'; msg.textContent = ERREURS.TELEPHONE_INVALIDE; phoneEl.focus(); return; }
+    if (st.place === 'domicile' && (st.address || '').trim().length < 3) { msg.className = 'msg bad'; msg.textContent = ERREURS.ADRESSE_REQUISE; var a = document.getElementById('f-addr'); if (a) { a.focus(); } return; }
     st.busy = true; btn.disabled = true; btn.textContent = 'Envoi en cours…';
-    API.rpc('create_booking', { p_service_id: st.service.id, p_starts_at: st.slot, p_name: nm, p_phone: ph }).then(function (rows) {
+    API.rpc('create_booking', { p_service_id: st.service.id, p_starts_at: st.slot, p_name: nm, p_phone: ph, p_place: st.place, p_address: st.place === 'domicile' ? st.address.trim() : null }).then(function (rows) {
       var r = rows && rows[0];
       if (!r || !r.reference) { throw new Error('REPONSE_INVALIDE'); }
       showDone(r, nm);
@@ -188,11 +207,12 @@
       h('div', { class: 'recap' }, [
         h('div', {}, [h('b', { text: st.service.name })]),
         h('div', { text: U.fmtDate(U.fmtDay(r.starts_at), true) + ' à ' + U.fmtTime(r.starts_at) }),
+        settings.home_visits ? h('div', { text: st.place === 'domicile' ? 'À ton domicile' : 'Sur place' }) : null,
         h('div', { text: 'Référence : ' + r.reference })
       ]),
-      h('p', { class: 'msg info', text: "Important : ton rendez-vous n'est pas encore confirmé. Le salon va te contacter pour le confirmer. Garde ta référence." }),
+      h('p', { class: 'msg info', text: "Important : ton rendez-vous n'est pas encore confirmé. Tu vas être contactée pour le confirmer. Garde ta référence." }),
       ph.length >= 8 ? h('a', { class: 'btn', target: '_blank', rel: 'noopener', href: 'https://wa.me/' + ph + '?text=' + encodeURIComponent('Bonjour, j\'ai fait une demande de rendez-vous. Référence ' + r.reference + '.') }, ['Prévenir le salon sur WhatsApp']) : null,
-      h('button', { type: 'button', class: 'btn ghost', onclick: function () { st = { service: null, date: null, slot: null, slots: [], busy: false }; renderBooking(); } }, ['Faire une autre demande'])
+      h('button', { type: 'button', class: 'btn ghost', onclick: function () { st = { service: null, date: null, slot: null, slots: [], busy: false, place: 'sur_place', address: '' }; renderBooking(); } }, ['Faire une autre demande'])
     ]));
   }
 

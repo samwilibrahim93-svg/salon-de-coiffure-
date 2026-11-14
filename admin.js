@@ -78,6 +78,7 @@
           h('div', { class: 'row' }, [h('b', { text: U.fmtDate(U.fmtDay(b.starts_at), true) + ' à ' + U.fmtTime(b.starts_at) }), h('span', { class: 'badge ' + b.status, text: STATUT[b.status] })]),
           h('div', { text: (b.services && b.services.name) || 'Prestation supprimée' }),
           h('div', { class: 'muted', text: b.client_name + ' · +' + b.client_phone + ' · réf. ' + b.reference }),
+          b.place === 'domicile' ? h('div', { text: 'À domicile : ' + (b.client_address || '(adresse non précisée)') }) : null,
           acts]));
       });
     }, function (e) { show(m, fail(e), false); });
@@ -166,6 +167,7 @@
         district: h('input', { id: 'r-district', maxlength: '60', value: s.district || '' }),
         address: h('input', { id: 'r-address', maxlength: '200', value: s.address || '' }),
         phone: h('input', { id: 'r-phone', type: 'tel', inputmode: 'tel', placeholder: '229XXXXXXXXXX', value: s.phone || '' }),
+        home: h('input', { id: 'r-home', type: 'checkbox', style: 'width:auto;min-height:0' }),
         policy: h('textarea', { id: 'r-policy', maxlength: '500', placeholder: 'Ex : merci de prévenir au moins 24 h à l\'avance en cas d\'annulation.' }),
         open: h('input', { id: 'r-open', type: 'time', value: String(s.open_time).slice(0, 5) }),
         close: h('input', { id: 'r-close', type: 'time', value: String(s.close_time).slice(0, 5) }),
@@ -173,7 +175,7 @@
         notice: h('input', { id: 'r-notice', type: 'number', min: '0', value: String(s.min_notice_minutes) }),
         ahead: h('input', { id: 'r-ahead', type: 'number', min: '1', max: '365', value: String(s.max_days_ahead) })
       };
-      f.policy.value = s.cancellation_policy || ''; f.slot.value = String(s.slot_minutes);
+      f.home.checked = !!s.home_visits; f.policy.value = s.cancellation_policy || ''; f.slot.value = String(s.slot_minutes);
       var days = h('div', { class: 'chips' }); var chosen = {};
       (s.open_days || []).forEach(function (d) { chosen[d] = true; });
       [1, 2, 3, 4, 5, 6, 7].forEach(function (d) {
@@ -186,6 +188,7 @@
         h('div', { class: 'inline' }, [fld('r-city', 'Ville', f.city), fld('r-district', 'Quartier', f.district)]),
         fld('r-address', 'Adresse ou repère', f.address),
         fld('r-phone', 'Numéro WhatsApp (indicatif 229, chiffres seulement)', f.phone),
+        h('div', { class: 'row' }, [f.home, h('label', { for: 'r-home', text: 'Je me déplace aussi à domicile (la cliente choisit à la réservation)', style: 'text-transform:none;letter-spacing:0;font-size:1rem;color:inherit' })]),
         fld('r-policy', "Règle d'annulation et de retard", f.policy),
         h('h3', { text: 'Horaires' }),
         h('div', { class: 'field' }, [h('label', { text: 'Jours ouverts' }), days]),
@@ -201,7 +204,7 @@
         if (!(f.open.value < f.close.value)) { show(m, "L'heure de fermeture doit être après l'ouverture.", false); return; }
         API.patch('salon_settings?id=eq.1', {
           name: f.name.value.trim() || null, city: f.city.value.trim() || null, district: f.district.value.trim() || null,
-          address: f.address.value.trim() || null, phone: ph || null, cancellation_policy: f.policy.value.trim() || null,
+          address: f.address.value.trim() || null, phone: ph || null, cancellation_policy: f.policy.value.trim() || null, home_visits: f.home.checked,
           open_days: od, open_time: f.open.value, close_time: f.close.value, slot_minutes: parseInt(f.slot.value, 10),
           min_notice_minutes: Math.max(0, parseInt(f.notice.value, 10) || 0), max_days_ahead: Math.min(365, Math.max(1, parseInt(f.ahead.value, 10) || 30))
         }).then(function () { show(m, 'Réglages enregistrés.', true); }, function (er) { show(m, fail(er), false); });
