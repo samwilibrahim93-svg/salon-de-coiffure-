@@ -31,12 +31,29 @@
   function renderHeader() {
     var name = salonName();
     var where = [settings && settings.district, settings && settings.city].filter(Boolean).join(' · ') || 'Parakou';
-    document.getElementById('brand').textContent = name;
-    document.getElementById('title').textContent = name;
+    var br = document.getElementById('brand'); if (br) { br.setAttribute('aria-label', name); }
+    document.getElementById('title-text').textContent = name;
     document.getElementById('where').textContent = where;
     var lede = document.getElementById('lede'); if (lede) { lede.textContent = 'Réserve ton rendez-vous en ligne, choisis ta prestation et ton créneau. ' + name + ' te confirme ensuite ta demande.'; }
     document.getElementById('foot').textContent = name + ' · ' + (settings && settings.city || 'Parakou');
     document.title = name + ' à ' + (settings && settings.city || 'Parakou') + (settings && settings.district ? ', ' + settings.district : '');
+  }
+
+  function renderHeroInfo() {
+    var box = document.getElementById('hero-services'), list = document.getElementById('hero-svc-list');
+    if (box && list) {
+      U.clear(list);
+      services.slice(0, 6).forEach(function (sv) { list.appendChild(h('li', { text: sv.name })); });
+      box.hidden = !services.length;
+    }
+    var lines = document.getElementById('hero-lines');
+    if (lines) {
+      U.clear(lines);
+      var st0 = settings || {}, ph = U.digits(st0.phone);
+      if (ph.length >= 8) { lines.appendChild(h('li', {}, [h('a', { href: 'https://wa.me/' + ph, target: '_blank', rel: 'noopener', text: 'WhatsApp : +' + ph })])); }
+      var place = [st0.district, st0.city].filter(Boolean).join(', ');
+      if (place) { lines.appendChild(h('li', { text: place + (st0.home_visits ? ' · sur place ou à domicile' : '') })); }
+    }
   }
 
   function renderServices() {
@@ -75,8 +92,8 @@
   function renderHero(photos) {
     var box = document.getElementById('hero-photos'); if (!box) { return; }
     U.clear(box);
-    var two = (window.SALON_PHOTOS || []).filter(function (p) { return p && U.safePhoto(p.src); }).slice(0, 2);
-    if (two.length < 2) { two = photos.slice(0, 2); }
+    var two = (window.SALON_PHOTOS || []).filter(function (p) { return p && U.safePhoto(p.src); }).slice(0, 3);
+    if (two.length < 3) { two = photos.slice(0, 3); }
     if (!two.length) { box.hidden = true; return; }
     box.hidden = false;
     two.forEach(function (p, i) { box.appendChild(h('img', { class: 'hp' + i, src: U.safePhoto(p.src), alt: p.alt || 'Coiffure réalisée au salon', fetchpriority: i === 0 ? 'high' : 'low' })); });
@@ -284,7 +301,7 @@
   function renderAvail() {
     var g = document.getElementById('avail'); if (!g) { return; }
     U.clear(g);
-    g.appendChild(h('h3', { text: 'Jours et heures libres cette semaine' }));
+    g.appendChild(h('p', { class: 'eyebrow', text: 'Prochains créneaux' }));
     g.appendChild(h('p', { class: 'muted', text: st.service ? 'Pour : ' + st.service.name + '. Touche une heure pour la réserver.' : 'Touche une heure pour la réserver. Les heures déjà prises ne sont pas affichées.' }));
     g.appendChild(h('p', { id: 'avail-msg', role: 'status', class: 'msg' }));
     if (avail.loading) { g.appendChild(h('p', { class: 'muted', text: 'Chargement des disponibilités…' })); return; }
@@ -417,7 +434,7 @@
   ]).then(function (res) {
     settings = (res[0] && res[0][0]) || { open_days: [1, 2, 3, 4, 6, 7], open_time: '08:00', close_time: '18:30', max_days_ahead: 30 };
     services = res[1] || [];
-    renderHeader(); renderServices(); renderInfos(); renderBooking(); loadAvail(); loadMine();
+    renderHeader(); renderHeroInfo(); renderServices(); renderInfos(); renderBooking(); loadAvail(); loadMine();
   }, function () {
     settings = { open_days: [], max_days_ahead: 1 };
     avail.loading = false; avail.error = 'Impossible de charger les disponibilités.'; renderAvail(); loadMine();

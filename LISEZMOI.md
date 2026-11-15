@@ -37,6 +37,12 @@ Ensuite elle se connecte sur `admin.html` et complète : nom du salon, adresse, 
 - **Nouveau design** moderne : accueil avec photos, prestations en grandes cartes photo, galerie en mosaïque.
 - Fichiers à remplacer sur GitHub : index.html, styles.css, api.js, common.js, site.js, admin.js, admin.html.
 
+## Version 4 : design noir et rose + logo de Yasmin
+- Accueil inspiré des modèles : fond noir, rose poudré, cercles décoratifs, logo de Yasmin en grand, liste « Nos prestations » (reprise automatiquement des prestations ajoutées), carte blanche avec bouton Réserver, WhatsApp et lieu, et trois photos aux cadres arrondis.
+- Textes retirés : « Choisis ta coiffure », « Heures libres », « Sur place ou à domicile » (bandeau) et « Jours et heures libres cette semaine ».
+- Logo : `logo.png` (original) et `logo-light.png` (version claire pour fond noir, générée à partir de l'original). Pour changer de logo, remplace ces fichiers (garde les mêmes noms).
+- Fichiers à remplacer sur GitHub : index.html, styles.css, site.js, admin.html, plus les 2 nouveaux : logo.png et logo-light.png.
+
 ## Limites connues
 - Le nom écrit à la réservation sert à retrouver un rendez-vous : deux clientes avec le même nom ET le même numéro verraient les mêmes rendez-vous (cas très improbable).
 - Les rendez-vous mémorisés sont liés à l'appareil : si la cliente vide son navigateur, elle utilise « Retrouver un rendez-vous ».

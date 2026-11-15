@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Yasmin Hair Studio à Parakou, Albarika</title>
 <meta name="description" content="Yasmin Hair Studio, coiffure et tresses à Albarika, Parakou. Découvre les prestations en photos et réserve ton rendez-vous en ligne.">
-<meta name="theme-color" content="#2A1230">
+<meta name="theme-color" content="#141012">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="site">
 <a class="skip" href="#reserver">Aller à la réservation</a>
 <header class="top"><div class="wrap">
-  <a class="brand" href="#accueil" id="brand">Salon de coiffure</a>
+  <a class="brand" href="#accueil" id="brand" aria-label="Yasmin Hair Studio"><img src="logo-light.png" alt="Yasmin Hair Studio" width="150" height="80"></a>
   <nav class="menu" aria-label="Sections"><a href="#prestations">Prestations</a><a href="#reserver">Réserver</a><a href="#mes-rdv">Mes rendez-vous</a><a href="#galerie">Photos</a><a href="#infos">Infos</a></nav>
   <a class="btn small" href="#reserver">Réserver</a>
 </div></header>
@@ -23,23 +23,22 @@
   <section class="hero"><div class="wrap hero-grid">
     <div class="hero-text">
       <p class="eyebrow" id="where">Parakou · Albarika</p>
-      <h1 id="title">Salon de coiffure</h1>
+      <h1 id="title" class="logo-hero"><img src="logo-light.png" alt="" width="845" height="452"><span class="sr" id="title-text">Salon de coiffure</span></h1>
       <p class="lede" id="lede">Réserve ton rendez-vous en ligne, choisis ta prestation et ton créneau. Le salon te confirme ensuite ta demande.</p>
-      <div class="hero-cta">
-        <a class="btn" href="#reserver">Réserver un rendez-vous</a>
-        <a class="btn ghost" href="#prestations">Voir les prestations</a>
+      <div class="hero-services" id="hero-services" hidden>
+        <h2 class="label">Nos prestations :</h2>
+        <ul id="hero-svc-list"></ul>
       </div>
-      <ul class="facts" aria-label="En bref">
-        <li><b>Choisis ta coiffure</b><span>sur photo, avec le prix</span></li>
-        <li><b>Heures libres</b><span>visibles en direct</span></li>
-        <li><b>Sur place ou à domicile</b><span>à toi de choisir</span></li>
-      </ul>
+      <div class="hero-card" id="hero-contact">
+        <a class="btn" href="#reserver">Réserver un rendez-vous</a>
+        <ul class="hero-lines" id="hero-lines"></ul>
+      </div>
     </div>
     <div class="hero-photos" id="hero-photos" hidden></div>
   </div></section>
 
   <section class="section" id="prestations"><div class="wrap">
-    <p class="eyebrow">Ce que nous faisons</p><h2>Choisis ta coiffure</h2>
+    <p class="eyebrow">Ce que nous faisons</p><h2>Nos prestations</h2>
     <div id="services" class="grid"></div>
   </div></section>
 
