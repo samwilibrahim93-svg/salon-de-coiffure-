@@ -61,7 +61,8 @@
   var addedPhotos = [];
   function allPhotos() {
     var list = addedPhotos.map(function (r) { return { src: r.path, alt: r.alt }; }).concat(window.SALON_PHOTOS || []);
-    return list.filter(function (p) { return p && U.safePhoto(p.src); });
+    var hid = (settings && settings.hidden_photos) || [];
+    return list.filter(function (p) { return p && U.safePhoto(p.src) && hid.indexOf(p.src) < 0; });
   }
   function renderGallery() {
     var photos = allPhotos();
@@ -76,7 +77,7 @@
     var box = document.getElementById('hero-photos'); if (!box || !settings) { return; }
     U.clear(box);
     var chosen = ((settings && settings.hero_photos) || []).filter(function (x) { return U.safePhoto(x); }).slice(0, 3).map(function (x) { return { src: x, alt: 'Coiffure réalisée au salon' }; });
-    var two = chosen.length ? chosen : (window.SALON_PHOTOS || []).filter(function (p) { return p && U.safePhoto(p.src); }).slice(0, 3);
+    var two = chosen.length ? chosen : (window.SALON_PHOTOS || []).filter(function (p) { return p && U.safePhoto(p.src) && ((settings && settings.hidden_photos) || []).indexOf(p.src) < 0; }).slice(0, 3);
     if (!two.length) { two = photos.slice(0, 3); }
     if (!two.length) { box.hidden = true; return; }
     box.hidden = false;

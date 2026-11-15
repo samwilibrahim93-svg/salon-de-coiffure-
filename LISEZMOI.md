@@ -49,6 +49,11 @@ Ensuite elle se connecte sur `admin.html` et complète : nom du salon, adresse, 
 - Espace gérante > Réservations : un rendez-vous **annulé** peut être supprimé (confirmation en 2 clics). Les rendez-vous en attente ou confirmés ne se suppriment pas.
 - Fichiers à remplacer sur GitHub : index.html, styles.css, site.js, admin.js.
 
+## Version 6
+- Espace gérante > Photos : en plus d'ajouter et supprimer des photos, Yasmin peut **masquer ou réafficher** chacune des 13 photos de départ.
+- Signature « Site réalisé par MAKO » en bas à droite de la page.
+- Fichiers à remplacer sur GitHub : index.html, styles.css, site.js, admin.js.
+
 ## Limites connues
 - Le nom écrit à la réservation sert à retrouver un rendez-vous : deux clientes avec le même nom ET le même numéro verraient les mêmes rendez-vous (cas très improbable).
 - Les rendez-vous mémorisés sont liés à l'appareil : si la cliente vide son navigateur, elle utilise « Retrouver un rendez-vous ».

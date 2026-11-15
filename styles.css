@@ -178,3 +178,6 @@ details.day .chips { margin-top: 10px; }
 .site .grid .card { box-shadow: none; }
 .site input::placeholder { color: #8E7C8E; }
 .site details.day { background: #181218; }
+
+.foot-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; }
+.credit { margin-left: auto; text-align: right; }
