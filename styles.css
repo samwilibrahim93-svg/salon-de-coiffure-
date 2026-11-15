@@ -62,7 +62,7 @@ nav.menu a:hover { color: var(--fg); }
 .hero-services ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 28px; font-size: 1.08rem; }
 .hero-services li { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .hero-services li::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--plum); flex: none; }
-.hero-card { --fg: #1E1420; --muted: #5E525E; background: #FFFFFF; color: var(--fg); border-radius: 26px; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; box-shadow: var(--shadow); max-width: 440px; width: 100%; }
+.hero-card { --fg: #1E1420; --muted: #5E525E; background: #FFFFFF; color: var(--fg); border-radius: 26px; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; box-shadow: var(--shadow); max-width: 440px; }
 .hero-card .btn { background: #141014; color: #FFFFFF; }
 .hero-card .btn:hover { background: #2B222B; }
 .hero-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-weight: 600; color: var(--fg); }

@@ -43,6 +43,12 @@ Ensuite elle se connecte sur `admin.html` et complète : nom du salon, adresse, 
 - Logo : `logo.png` (original) et `logo-light.png` (version claire pour fond noir, générée à partir de l'original). Pour changer de logo, remplace ces fichiers (garde les mêmes noms).
 - Fichiers à remplacer sur GitHub : index.html, styles.css, site.js, admin.html, plus les 2 nouveaux : logo.png et logo-light.png.
 
+## Version 5
+- Accueil allégé : seuls le logo, le texte d'accueil, le bouton « Réserver un rendez-vous » et les photos restent. Le bloc des jours libres n'a plus de titre ni de compteur (les jours et heures restent).
+- Espace gérante > Photos : Yasmin choisit ou envoie les 3 photos de la page d'accueil.
+- Espace gérante > Réservations : un rendez-vous **annulé** peut être supprimé (confirmation en 2 clics). Les rendez-vous en attente ou confirmés ne se suppriment pas.
+- Fichiers à remplacer sur GitHub : index.html, styles.css, site.js, admin.js.
+
 ## Limites connues
 - Le nom écrit à la réservation sert à retrouver un rendez-vous : deux clientes avec le même nom ET le même numéro verraient les mêmes rendez-vous (cas très improbable).
 - Les rendez-vous mémorisés sont liés à l'appareil : si la cliente vide son navigateur, elle utilise « Retrouver un rendez-vous ».

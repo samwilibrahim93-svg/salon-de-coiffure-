@@ -73,6 +73,13 @@
         function setStatus(s) { return function () { API.patch('bookings?id=eq.' + b.id, { status: s }).then(renderShell, function (e) { show(m, fail(e), false); }); }; }
         if (b.status === 'pending') { acts.appendChild(h('button', { class: 'btn small', type: 'button', onclick: setStatus('confirmed') }, ['Confirmer'])); }
         if (b.status !== 'cancelled') { acts.appendChild(h('button', { class: 'btn small danger', type: 'button', onclick: setStatus('cancelled') }, ['Annuler'])); }
+        if (b.status === 'cancelled') {
+          acts.appendChild(h('button', { class: 'btn small danger', type: 'button', onclick: function (ev) {
+            var bt = ev.currentTarget;
+            if (!bt.dataset.armed) { bt.dataset.armed = '1'; bt.textContent = 'Confirmer la suppression'; return; }
+            API.remove('bookings?id=eq.' + b.id + '&status=eq.cancelled').then(renderShell, function (e) { show(m, fail(e), false); });
+          } }, ['Supprimer']));
+        }
         acts.appendChild(h('a', { class: 'btn small ghost', target: '_blank', rel: 'noopener', href: 'https://wa.me/' + b.client_phone }, ['WhatsApp']));
         list.appendChild(h('article', { class: 'item' }, [
           h('div', { class: 'row' }, [h('b', { text: U.fmtDate(U.fmtDay(b.starts_at), true) + ' à ' + U.fmtTime(b.starts_at) }), h('span', { class: 'badge ' + b.status, text: STATUT[b.status] })]),
@@ -191,7 +198,7 @@
 
   /* ---------- Photos de la galerie ---------- */
   function tabPhotos(body) {
-    var m = msgBox(), grid = h('div', { class: 'admin-gallery' });
+    var m = msgBox(), grid = h('div', { class: 'admin-gallery g-list' });
     var file = h('input', { type: 'file', id: 'g-file', accept: 'image/jpeg,image/png,image/webp', multiple: true });
     var alt = h('input', { id: 'g-alt', maxlength: '120', placeholder: 'Ex : Tresses collées avec perles' });
     var btn = h('button', { class: 'btn', type: 'submit' }, ['Ajouter à la galerie']);
@@ -217,10 +224,42 @@
         file.value = ''; loadList();
       });
     });
+    var heroBox = h('div', { class: 'step', style: 'margin-bottom:14px' });
+    body.appendChild(heroBox);
+    drawHero();
     body.appendChild(f); body.appendChild(h('div', { style: 'height:14px' }));
     body.appendChild(h('h3', { text: 'Photos ajoutées' }));
     body.appendChild(grid);
     body.appendChild(h('p', { class: 'muted', style: 'margin-top:14px', text: 'Les ' + (window.SALON_PHOTOS || []).length + ' photos de départ font partie des fichiers du site : elles ne se suppriment pas d\'ici.' }));
+    /* Photos de l'accueil (3 au maximum) */
+    function drawHero() {
+      var hm = msgBox();
+      U.clear(heroBox);
+      heroBox.appendChild(h('h3', { text: "Photos de la page d'accueil" }));
+      heroBox.appendChild(h('p', { class: 'muted', text: "Ce sont les 3 photos qui s'affichent à côté du logo. Choisis-les parmi les photos du site ou envoie-en une nouvelle." }));
+      API.get('salon_settings?select=hero_photos&id=eq.1').then(function (rows) {
+        var cur = ((rows && rows[0] && rows[0].hero_photos) || []).filter(function (x) { return U.safePhoto(x); }).slice(0, 3);
+        if (!cur.length) { cur = (window.SALON_PHOTOS || []).slice(0, 3).map(function (p) { return p.src; }); }
+        function save(list) { API.patch('salon_settings?id=eq.1', { hero_photos: list }).then(function () { drawHero(); }, function (e) { show(hm, photoErr(e), false); }); }
+        var row = h('div', { class: 'admin-gallery' }), panel = h('div');
+        cur.forEach(function (src, i) {
+          row.appendChild(h('figure', { class: 'ag-item' }, [
+            h('img', { src: U.safePhoto(src), alt: 'Photo d\'accueil ' + (i + 1) }),
+            h('button', { class: 'btn small ghost', type: 'button', onclick: function () {
+              U.clear(panel); panel.appendChild(photoPicker(function (v) { var n = cur.slice(); n[i] = v; save(n); }, hm));
+            } }, ['Changer']),
+            cur.length > 1 ? h('button', { class: 'btn small danger', type: 'button', onclick: function () { save(cur.filter(function (_, j) { return j !== i; })); } }, ['Retirer']) : null]));
+        });
+        heroBox.appendChild(row);
+        if (cur.length < 3) {
+          heroBox.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () {
+            U.clear(panel); panel.appendChild(photoPicker(function (v) { save(cur.concat([v])); }, hm));
+          } }, ['Ajouter une photo d\'accueil']));
+        }
+        heroBox.appendChild(hm); heroBox.appendChild(panel);
+      }, function (e) { heroBox.appendChild(hm); show(hm, fail(e), false); });
+    }
+
     function loadList() {
       API.get('gallery_photos?select=id,path,alt&order=created_at.desc').then(function (rows) {
         U.clear(grid);
