@@ -1,4 +1,4 @@
-/* Espace de la gérante : réservations, prestations, réglages, créneaux bloqués.
+/* Espace de la gérante : réservations, prestations, photos, réglages, créneaux bloqués.
    La sécurité repose sur la base de données (règles RLS) : cette page ne protège rien toute seule. */
 (function () {
   var h = U.h, API = SalonAPI;
@@ -44,12 +44,12 @@
   function renderShell() {
     U.clear(app); logout.hidden = false;
     var tabs = h('div', { class: 'tabs' });
-    [['reservations', 'Réservations'], ['services', 'Prestations'], ['bloques', 'Créneaux bloqués'], ['reglages', 'Réglages']].forEach(function (t) {
+    [['reservations', 'Réservations'], ['services', 'Prestations'], ['photos', 'Photos'], ['bloques', 'Créneaux bloqués'], ['reglages', 'Réglages']].forEach(function (t) {
       tabs.appendChild(h('button', { type: 'button', class: 'chip', 'aria-pressed': tab === t[0] ? 'true' : 'false', onclick: function () { tab = t[0]; renderShell(); } }, [t[1]]));
     });
     var body = h('div');
     app.appendChild(tabs); app.appendChild(body);
-    ({ reservations: tabReservations, services: tabServices, bloques: tabBloques, reglages: tabReglages })[tab](body);
+    ({ reservations: tabReservations, services: tabServices, photos: tabPhotos, bloques: tabBloques, reglages: tabReglages })[tab](body);
   }
 
   /* ---------- Réservations ---------- */
@@ -77,7 +77,7 @@
         list.appendChild(h('article', { class: 'item' }, [
           h('div', { class: 'row' }, [h('b', { text: U.fmtDate(U.fmtDay(b.starts_at), true) + ' à ' + U.fmtTime(b.starts_at) }), h('span', { class: 'badge ' + b.status, text: STATUT[b.status] })]),
           h('div', { text: (b.services && b.services.name) || 'Prestation supprimée' }),
-          h('div', { class: 'muted', text: b.client_name + ' · +' + b.client_phone + ' · réf. ' + b.reference }),
+          h('div', { class: 'muted', text: b.client_name + ' · +' + b.client_phone }),
           b.place === 'domicile' ? h('div', { text: 'À domicile : ' + (b.client_address || '(adresse non précisée)') }) : null,
           acts]));
       });
@@ -107,21 +107,26 @@
     if (m === 'TROP_GROS') { return 'Photo trop lourde (15 Mo maximum).'; }
     return fail(e);
   }
-  /* Panneau de choix : photos du site + envoi d'une nouvelle photo. onPick(valeur) est appelé avec le chemin choisi. */
+  function uploadPhoto(file) {
+    return resizeToJpeg(file).then(function (blob) {
+      var name = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+      return API.upload('prestations', name, blob).then(function () { return { name: name, url: API.publicUrl('prestations', name) }; });
+    });
+  }
+  /* Panneau de choix : photos du site + photos ajoutées + envoi d'une nouvelle photo. onPick(valeur) est appelé avec le chemin choisi. */
   function photoPicker(onPick, msg) {
     var grid = h('div', { class: 'chips', style: 'margin-top:8px' });
-    (window.SALON_PHOTOS || []).forEach(function (p) {
-      var src = U.safePhoto(p && p.src); if (!src) { return; }
-      grid.appendChild(h('button', { type: 'button', class: 'svc-pick', 'aria-label': 'Choisir cette photo', onclick: function () { onPick(src); } }, [h('img', { src: src, alt: p.alt || 'Photo' })]));
-    });
+    function addThumb(srcRaw, alt) {
+      var src = U.safePhoto(srcRaw); if (!src) { return; }
+      grid.appendChild(h('button', { type: 'button', class: 'svc-pick', 'aria-label': 'Choisir cette photo', onclick: function () { onPick(src); } }, [h('img', { src: src, alt: alt || 'Photo' })]));
+    }
+    (window.SALON_PHOTOS || []).forEach(function (p) { addThumb(p && p.src, p && p.alt); });
+    API.get('gallery_photos?select=path,alt&order=created_at.desc').then(function (rows) { (rows || []).forEach(function (r) { addThumb(r.path, r.alt); }); }, function () { /* galerie ajoutée indisponible : les photos du site restent proposées */ });
     var file = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', 'aria-label': 'Envoyer une nouvelle photo' });
     file.addEventListener('change', function () {
       var f = file.files && file.files[0]; if (!f) { return; }
       show(msg, 'Envoi de la photo…', true);
-      resizeToJpeg(f).then(function (blob) {
-        var name = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
-        return API.upload('prestations', name, blob).then(function () { onPick(API.publicUrl('prestations', name)); });
-      }).then(null, function (e) { show(msg, photoErr(e), false); });
+      uploadPhoto(f).then(function (r) { onPick(r.url); }).then(null, function (e) { show(msg, photoErr(e), false); });
     });
     return h('div', { class: 'card' }, [h('b', { text: 'Choisir une photo' }), grid, h('div', { class: 'field', style: 'margin-top:10px' }, [h('label', { text: 'Ou envoyer une nouvelle photo' }), file])]);
   }
@@ -182,6 +187,57 @@
             } }, ['Supprimer'])]), panel]));
       });
     }, function (e) { show(m, fail(e), false); });
+  }
+
+  /* ---------- Photos de la galerie ---------- */
+  function tabPhotos(body) {
+    var m = msgBox(), grid = h('div', { class: 'admin-gallery' });
+    var file = h('input', { type: 'file', id: 'g-file', accept: 'image/jpeg,image/png,image/webp', multiple: true });
+    var alt = h('input', { id: 'g-alt', maxlength: '120', placeholder: 'Ex : Tresses collées avec perles' });
+    var btn = h('button', { class: 'btn', type: 'submit' }, ['Ajouter à la galerie']);
+    var f = h('form', { class: 'step', novalidate: true }, [
+      h('h3', { text: 'Ajouter des photos' }),
+      h('p', { class: 'muted', text: 'Choisis une ou plusieurs photos de tes coiffures. Elles apparaissent tout de suite sur le site, dans « Les photos ». Évite les photos où une cliente est reconnaissable sans son accord.' }),
+      h('div', { class: 'field' }, [h('label', { for: 'g-file', text: 'Photos (JPG, PNG ou WebP)' }), file]),
+      h('div', { class: 'field' }, [h('label', { for: 'g-alt', text: 'Description courte (facultatif)' }), alt]),
+      m, btn]);
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var files = Array.prototype.slice.call(file.files || [], 0, 10);
+      if (!files.length) { show(m, 'Choisis au moins une photo.', false); return; }
+      btn.disabled = true; show(m, 'Envoi en cours…', true);
+      var done = 0, errs = [];
+      files.reduce(function (p, fl) {
+        return p.then(function () {
+          return uploadPhoto(fl).then(function (r) { return API.insert('gallery_photos', { path: r.url, alt: alt.value.trim() || null }); }).then(function () { done++; }, function (er) { errs.push(photoErr(er)); });
+        });
+      }, Promise.resolve()).then(function () {
+        btn.disabled = false;
+        if (errs.length) { show(m, done + ' photo(s) ajoutée(s). Problème : ' + errs[0], false); } else { show(m, done + ' photo(s) ajoutée(s).', true); }
+        file.value = ''; loadList();
+      });
+    });
+    body.appendChild(f); body.appendChild(h('div', { style: 'height:14px' }));
+    body.appendChild(h('h3', { text: 'Photos ajoutées' }));
+    body.appendChild(grid);
+    body.appendChild(h('p', { class: 'muted', style: 'margin-top:14px', text: 'Les ' + (window.SALON_PHOTOS || []).length + ' photos de départ font partie des fichiers du site : elles ne se suppriment pas d\'ici.' }));
+    function loadList() {
+      API.get('gallery_photos?select=id,path,alt&order=created_at.desc').then(function (rows) {
+        U.clear(grid);
+        if (!rows.length) { grid.appendChild(h('div', { class: 'empty', text: 'Aucune photo ajoutée pour le moment.' })); return; }
+        rows.forEach(function (r) {
+          var src = U.safePhoto(r.path); if (!src) { return; }
+          grid.appendChild(h('figure', { class: 'ag-item' }, [
+            h('img', { src: src, alt: r.alt || 'Photo ajoutée', loading: 'lazy' }),
+            h('button', { class: 'btn small danger', type: 'button', onclick: function (ev) {
+              var b = ev.currentTarget;
+              if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Confirmer'; return; }
+              API.remove('gallery_photos?id=eq.' + r.id).then(function () { return API.removeObject('prestations', src.slice(src.lastIndexOf('/') + 1)); }).then(loadList, function (e) { show(m, fail(e), false); });
+            } }, ['Supprimer'])]));
+        });
+      }, function (e) { show(m, fail(e), false); });
+    }
+    loadList();
   }
 
   /* ---------- Créneaux bloqués ---------- */

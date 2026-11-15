@@ -53,6 +53,10 @@
         return r.text().then(function (t) { var e = new Error(t || ('HTTP ' + r.status)); e.status = r.status; throw e; });
       }, function () { var e = new Error('RESEAU'); e.status = 0; throw e; });
     },
+    removeObject: function (bucket, name) {
+      return fetch(C.url + '/storage/v1/object/' + bucket + '/' + name, { method: 'DELETE', headers: { 'apikey': C.key, 'Authorization': 'Bearer ' + token } })
+        .then(function (r) { return r.ok; }, function () { return false; });
+    },
     publicUrl: function (bucket, name) { return C.url + '/storage/v1/object/public/' + bucket + '/' + name; },
     hasToken: function () { return !!token; }
   };

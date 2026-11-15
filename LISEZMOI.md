@@ -30,7 +30,15 @@ Ensuite elle se connecte sur `admin.html` et complète : nom du salon, adresse, 
 - **Photos des prestations** : dans l'espace gérante > Prestations, choisir une photo parmi celles du site ou en envoyer une nouvelle (réduite automatiquement). La photo apparaît sur la carte de la prestation et dans le choix de réservation.
 - Fichiers à remplacer sur GitHub : index.html, styles.css, config.js (inchangé), api.js, common.js, site.js, admin.js. La base de données est déjà à jour.
 
+## Version 3 : annulation, nom à la place du code, espace photos, nouveau design
+- **Annuler un rendez-vous** : la cliente peut l'annuler elle-même dans « Mes rendez-vous » (confirmation en 2 clics). Le créneau redevient libre et la gérante voit « Annulé ». Seuls les rendez-vous à venir peuvent être annulés, et il faut le bon numéro de téléphone. Un rendez-vous annulé ou passé peut être « retiré de la liste » sur l'appareil (il reste dans l'espace gérante).
+- **Plus de code de référence** : le rendez-vous est retrouvé avec le **nom** écrit à la réservation + le numéro. (Un code technique existe toujours dans la base mais n'est plus montré.)
+- **Espace Photos** (espace gérante > onglet Photos) : Yasmin ajoute ou supprime des photos de la galerie, sans toucher aux fichiers. Les photos ajoutées sont aussi proposées pour illustrer une prestation.
+- **Nouveau design** moderne : accueil avec photos, prestations en grandes cartes photo, galerie en mosaïque.
+- Fichiers à remplacer sur GitHub : index.html, styles.css, api.js, common.js, site.js, admin.js, admin.html.
+
 ## Limites connues
+- Le nom écrit à la réservation sert à retrouver un rendez-vous : deux clientes avec le même nom ET le même numéro verraient les mêmes rendez-vous (cas très improbable).
 - Les rendez-vous mémorisés sont liés à l'appareil : si la cliente vide son navigateur, elle utilise « Retrouver un rendez-vous ».
 - Une demande « en attente » bloque le créneau tant que la gérante ne l'a pas confirmée ou annulée.
 - Pas d'annulation en ligne par la cliente : elle contacte le salon.

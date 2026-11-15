@@ -12,10 +12,11 @@
     TELEPHONE_INVALIDE: 'Le numéro de téléphone semble incorrect. Utilise seulement des chiffres, avec l\'indicatif (ex. 229 suivi du numéro).',
     NOM_INVALIDE: 'Écris ton nom (entre 2 et 80 caractères).',
     PRESTATION_INDISPONIBLE: "Cette prestation n'est plus disponible.",
-    TROP_DE_RESERVATIONS: "Tu as déjà 3 rendez-vous à venir avec ce numéro. Contacte le salon pour en ajouter ou en modifier un.",
+    TROP_DE_RESERVATIONS: "Tu as déjà 3 rendez-vous à venir avec ce numéro. Annule-en un dans « Mes rendez-vous » ou contacte le salon.",
     ADRESSE_REQUISE: 'Indique ton quartier ou un repère pour qu\'on puisse te trouver.',
     DOMICILE_INDISPONIBLE: 'Le service à domicile n\'est pas disponible. Choisis « Sur place ».',
     LIEU_INVALIDE: 'Choisis où aura lieu le rendez-vous.',
+    RDV_INTROUVABLE: "Ce rendez-vous ne peut plus être annulé (déjà annulé ou passé). Contacte le salon.",
     TROP_DE_DEMANDES: 'Beaucoup de demandes en même temps. Réessaie dans quelques minutes.'
   };
   function errText(e) {
@@ -57,13 +58,28 @@
     });
   }
 
+  var addedPhotos = [];
+  function allPhotos() {
+    var list = addedPhotos.map(function (r) { return { src: r.path, alt: r.alt }; }).concat(window.SALON_PHOTOS || []);
+    return list.filter(function (p) { return p && U.safePhoto(p.src); });
+  }
   function renderGallery() {
-    var photos = (window.SALON_PHOTOS || []).filter(function (p) { return p && /^photos\/[\w.\- ]+$/.test(p.src || ''); });
+    var photos = allPhotos();
+    renderHero(photos);
     if (!photos.length) { return; }
     var g = document.getElementById('gallery'); U.clear(g);
     var w = h('div', { class: 'gallery' });
-    photos.forEach(function (p) { w.appendChild(h('img', { src: p.src, alt: p.alt || 'Photo du salon', loading: 'lazy' })); });
+    photos.forEach(function (p) { w.appendChild(h('img', { src: U.safePhoto(p.src), alt: p.alt || 'Coiffure réalisée au salon', loading: 'lazy' })); });
     g.appendChild(w);
+  }
+  function renderHero(photos) {
+    var box = document.getElementById('hero-photos'); if (!box) { return; }
+    U.clear(box);
+    var two = (window.SALON_PHOTOS || []).filter(function (p) { return p && U.safePhoto(p.src); }).slice(0, 2);
+    if (two.length < 2) { two = photos.slice(0, 2); }
+    if (!two.length) { box.hidden = true; return; }
+    box.hidden = false;
+    two.forEach(function (p, i) { box.appendChild(h('img', { class: 'hp' + i, src: U.safePhoto(p.src), alt: p.alt || 'Coiffure réalisée au salon', fetchpriority: i === 0 ? 'high' : 'low' })); });
   }
 
   function renderInfos() {
@@ -208,7 +224,7 @@
     API.rpc('create_booking', { p_service_id: st.service.id, p_starts_at: st.slot, p_name: nm, p_phone: ph, p_place: st.place, p_address: st.place === 'domicile' ? st.address.trim() : null }).then(function (rows) {
       var r = rows && rows[0];
       if (!r || !r.reference) { throw new Error('REPONSE_INVALIDE'); }
-      remember({ reference: r.reference, phone: ph });
+      remember({ name: nm, phone: ph });
       showDone(r, nm);
       loadMine(); loadAvail();
     }, function (e) {
@@ -229,10 +245,10 @@
         h('div', {}, [h('b', { text: st.service.name })]),
         h('div', { text: U.fmtDate(U.fmtDay(r.starts_at), true) + ' à ' + U.fmtTime(r.starts_at) }),
         settings.home_visits ? h('div', { text: st.place === 'domicile' ? 'À ton domicile' : 'Sur place' }) : null,
-        h('div', { text: 'Référence : ' + r.reference })
+        h('div', { text: 'Au nom de : ' + nm })
       ]),
-      h('p', { class: 'msg info', text: "Important : ton rendez-vous n'est pas encore confirmé. Tu vas être contactée pour le confirmer. Garde ta référence : tu retrouveras aussi ce rendez-vous dans « Mes rendez-vous » sur cet appareil." }),
-      ph.length >= 8 ? h('a', { class: 'btn', target: '_blank', rel: 'noopener', href: 'https://wa.me/' + ph + '?text=' + encodeURIComponent('Bonjour, j\'ai fait une demande de rendez-vous. Référence ' + r.reference + '.') }, ['Prévenir le salon sur WhatsApp']) : null,
+      h('p', { class: 'msg info', text: "Important : ton rendez-vous n'est pas encore confirmé. Tu vas être contactée pour le confirmer. Tu retrouveras ce rendez-vous dans « Mes rendez-vous » sur cet appareil, avec ton nom et ton numéro. Tu pourras aussi l'annuler depuis cette page." }),
+      ph.length >= 8 ? h('a', { class: 'btn', target: '_blank', rel: 'noopener', href: 'https://wa.me/' + ph + '?text=' + encodeURIComponent('Bonjour, c\'est ' + nm + '. J\'ai fait une demande de rendez-vous pour ' + st.service.name + ' le ' + U.fmtDate(U.fmtDay(r.starts_at), true) + ' à ' + U.fmtTime(r.starts_at) + '.') }, ['Prévenir le salon sur WhatsApp']) : null,
       h('button', { type: 'button', class: 'btn ghost', onclick: function () { st = { service: null, date: null, slot: null, slots: [], busy: false, place: 'sur_place', address: '', pending: null }; renderBooking(); loadAvail(); } }, ['Faire une autre demande'])
     ]));
   }
@@ -288,21 +304,31 @@
   }
 
   /* ---------- Mes rendez-vous (mémorisés sur cet appareil) ---------- */
-  var mine = { items: [], rows: [], loading: false, error: null, lookupMsg: '' };
+  var mine = { items: [], rows: [], loading: false, error: null, lookupMsg: '', msg: '', armed: null };
+  var HKEY = 'rdv-hidden-v1';
+  function nkey(n) { return String(n || '').trim().toLowerCase(); }
 
   function readStore() {
     try {
       var v = JSON.parse(localStorage.getItem(KEY) || '[]');
-      return (Array.isArray(v) ? v : []).filter(function (x) { return x && typeof x.reference === 'string' && typeof x.phone === 'string'; }).slice(0, 10);
+      return (Array.isArray(v) ? v : []).filter(function (x) { return x && typeof x.phone === 'string' && (typeof x.name === 'string' || typeof x.reference === 'string'); }).slice(0, 10);
     } catch (e) { return []; }
   }
   function writeStore(items) { try { localStorage.setItem(KEY, JSON.stringify(items.slice(0, 10))); } catch (e) { /* stockage indisponible */ } }
+  function readHidden() { try { var v = JSON.parse(localStorage.getItem(HKEY) || '[]'); return Array.isArray(v) ? v.filter(function (x) { return typeof x === 'string'; }).slice(0, 200) : []; } catch (e) { return []; } }
+  function writeHidden(list) { try { localStorage.setItem(HKEY, JSON.stringify(list.slice(0, 200))); } catch (e) { /* rien */ } }
   function remember(it) {
-    var list = readStore().filter(function (x) { return x.reference.toUpperCase() !== String(it.reference).toUpperCase(); });
-    list.unshift({ reference: String(it.reference).toUpperCase(), phone: U.digits(it.phone) });
+    var phone = U.digits(it.phone), key = nkey(it.name);
+    var list = readStore().filter(function (x) { return !(x.name && nkey(x.name) === key && x.phone === phone); });
+    list.unshift({ name: String(it.name).trim(), phone: phone });
     writeStore(list); mine.items = list.slice(0, 10);
   }
-  var STATUT = { pending: ['En attente de confirmation', 'info'], confirmed: ['Confirmé', 'ok'], cancelled: ['Annulé', 'bad'] };
+  var STATUT = { pending: ['En attente de confirmation', 'pending'], confirmed: ['Confirmé', 'confirmed'], cancelled: ['Annulé', 'cancelled'] };
+
+  function phoneFor(row) {
+    var it = mine.items.filter(function (x) { return x.name && nkey(x.name) === nkey(row.client_name); })[0] || mine.items[0];
+    return it && it.phone;
+  }
 
   function loadMine() {
     mine.items = readStore();
@@ -311,58 +337,80 @@
     API.rpc('get_my_bookings', { p_items: mine.items }).then(function (rows) { mine.rows = rows || []; }, function (e) { mine.error = errText(e); }).then(function () { mine.loading = false; renderMine(); });
   }
 
-  function lookup(refEl, phEl) {
-    var ref = refEl.value.trim().toUpperCase(), ph = U.digits(phEl.value);
-    if (ref.length < 4 || ph.length < 8) { mine.lookupMsg = 'Écris ta référence et le numéro utilisé pour réserver.'; renderMine(); return; }
-    API.rpc('get_my_bookings', { p_items: [{ reference: ref, phone: ph }] }).then(function (rows) {
-      if (rows && rows.length) { remember({ reference: ref, phone: ph }); mine.lookupMsg = ''; loadMine(); }
-      else { mine.lookupMsg = 'Aucun rendez-vous trouvé. Vérifie la référence et le numéro de téléphone.'; renderMine(); }
+  function lookup(nameEl, phEl) {
+    var nm = nameEl.value.trim(), ph = U.digits(phEl.value);
+    if (nm.length < 2 || ph.length < 8) { mine.lookupMsg = 'Écris ton nom (comme pour la réservation) et ton numéro.'; renderMine(); return; }
+    API.rpc('get_my_bookings', { p_items: [{ name: nm, phone: ph }] }).then(function (rows) {
+      if (rows && rows.length) { remember({ name: nm, phone: ph }); mine.lookupMsg = ''; loadMine(); }
+      else { mine.lookupMsg = 'Aucun rendez-vous trouvé. Vérifie le nom écrit à la réservation et le numéro.'; renderMine(); }
     }, function (e) { mine.lookupMsg = errText(e); renderMine(); });
+  }
+
+  function cancelBooking(row) {
+    var ph = phoneFor(row); if (!ph) { return; }
+    mine.msg = '';
+    API.rpc('cancel_my_booking', { p_reference: row.reference, p_phone: ph }).then(function () {
+      mine.armed = null; mine.msg = 'Ton rendez-vous est annulé. Le créneau est de nouveau libre.'; loadMine(); loadAvail();
+    }, function (e) { mine.armed = null; mine.msg = errText(e); loadMine(); });
+  }
+
+  function hideBooking(row) {
+    var hid = readHidden(); hid.push(row.reference); writeHidden(hid); renderMine();
   }
 
   function renderMine() {
     var g = document.getElementById('mine'); if (!g) { return; }
     U.clear(g);
+    var now = Date.now(), hid = readHidden();
+    var rows = mine.rows.filter(function (r) { return hid.indexOf(r.reference) < 0; });
+    if (mine.msg) { g.appendChild(h('p', { class: 'msg info', role: 'status', text: mine.msg })); }
     if (mine.loading) { g.appendChild(h('p', { class: 'muted', text: 'Chargement de tes rendez-vous…' })); }
     else if (mine.error) { g.appendChild(h('p', { class: 'msg bad', text: mine.error })); }
-    else if (!mine.rows.length) { g.appendChild(h('p', { class: 'muted', text: "Tu n'as pas encore de rendez-vous sur cet appareil. Quand tu réserves, il apparaît ici à chaque visite." })); }
-    var now = Date.now();
-    var wrap = h('div', { style: 'display:flex;flex-direction:column;gap:12px;margin-top:6px' });
-    mine.rows.slice().sort(function (a, b) {
+    else if (!rows.length) { g.appendChild(h('p', { class: 'muted', text: "Tu n'as pas de rendez-vous sur cet appareil. Quand tu réserves, il apparaît ici à chaque visite." })); }
+    var wrap = h('div', { class: 'mine-list' });
+    rows.slice().sort(function (a, b) {
       var pa = new Date(a.ends_at) < now, pb = new Date(b.ends_at) < now;
       if (pa !== pb) { return pa ? 1 : -1; }
       return (new Date(a.starts_at) - new Date(b.starts_at)) * (pa ? -1 : 1);
     }).forEach(function (r) {
-      var sv = STATUT[r.status] || [r.status, 'info'];
-      var past = new Date(r.ends_at) < now;
-      wrap.appendChild(h('div', { class: 'mine-card', style: past ? 'opacity:.7' : null }, [
-        h('b', { text: r.service_name }),
+      var sv = STATUT[r.status] || [r.status, 'pending'];
+      var past = new Date(r.ends_at) < now, active = r.status !== 'cancelled' && !past;
+      var acts = h('div', { class: 'row' });
+      if (active) {
+        var armed = mine.armed === r.reference;
+        acts.appendChild(h('button', { type: 'button', class: 'btn small danger', onclick: function () { if (mine.armed === r.reference) { cancelBooking(r); } else { mine.armed = r.reference; renderMine(); } } }, [armed ? 'Oui, annuler ce rendez-vous' : 'Annuler ce rendez-vous']));
+        if (armed) { acts.appendChild(h('button', { type: 'button', class: 'btn small ghost', onclick: function () { mine.armed = null; renderMine(); } }, ['Garder'])); }
+      } else {
+        acts.appendChild(h('button', { type: 'button', class: 'btn small ghost', onclick: function () { hideBooking(r); } }, ['Retirer de la liste']));
+      }
+      wrap.appendChild(h('div', { class: 'mine-card' + (active ? '' : ' past') }, [
+        h('div', { class: 'row', style: 'justify-content:space-between' }, [h('b', { text: r.service_name }), h('span', { class: 'badge ' + sv[1], text: sv[0] })]),
         h('div', { text: U.fmtDate(U.fmtDay(r.starts_at), true) + ' à ' + U.fmtTime(r.starts_at) + (past ? ' (passé)' : '') }),
-        h('div', { class: 'muted', text: (r.place === 'domicile' ? 'À ton domicile' : 'Sur place') + ' · Réf. ' + r.reference }),
-        h('span', { class: 'msg ' + sv[1], style: 'align-self:flex-start;padding:4px 10px;font-size:.9rem', text: sv[0] })
+        h('div', { class: 'muted', text: (r.place === 'domicile' ? 'À ton domicile' : 'Sur place') + ' · Au nom de ' + r.client_name }),
+        acts
       ]));
     });
     g.appendChild(wrap);
-    // retrouver un rendez-vous (autre appareil, navigateur vidé)
-    var ref = h('input', { id: 'm-ref', type: 'text', maxlength: '20', autocomplete: 'off', placeholder: 'Ex : AB12CD34' });
+    var nm = h('input', { id: 'm-name', type: 'text', maxlength: '80', autocomplete: 'name', placeholder: 'Le nom écrit à la réservation' });
     var ph = h('input', { id: 'm-phone', type: 'tel', inputmode: 'tel', autocomplete: 'tel', placeholder: 'Le numéro utilisé pour réserver' });
-    var f = h('form', { novalidate: true, style: 'margin-top:22px', class: 'card' }, [
+    var f = h('form', { novalidate: true, class: 'card lookup' }, [
       h('h3', { text: 'Retrouver un rendez-vous' }),
-      h('p', { class: 'muted', text: "Tu as changé de téléphone ou vidé ton navigateur ? Entre ta référence et ton numéro." }),
-      h('div', { class: 'inline' }, [h('div', { class: 'field' }, [h('label', { for: 'm-ref', text: 'Référence' }), ref]), h('div', { class: 'field' }, [h('label', { for: 'm-phone', text: 'Ton numéro' }), ph])]),
+      h('p', { class: 'muted', text: "Tu as changé de téléphone ou vidé ton navigateur ? Entre ton nom et ton numéro, comme à la réservation." }),
+      h('div', { class: 'inline' }, [h('div', { class: 'field' }, [h('label', { for: 'm-name', text: 'Ton nom' }), nm]), h('div', { class: 'field' }, [h('label', { for: 'm-phone', text: 'Ton numéro' }), ph])]),
       h('p', { class: 'msg ' + (mine.lookupMsg ? 'bad' : ''), role: 'alert', text: mine.lookupMsg }),
       h('button', { type: 'submit', class: 'btn small' }, ['Retrouver'])
     ]);
-    f.addEventListener('submit', function (e) { e.preventDefault(); lookup(ref, ph); });
+    f.addEventListener('submit', function (e) { e.preventDefault(); lookup(nm, ph); });
     g.appendChild(f);
     if (mine.items.length) {
-      g.appendChild(h('p', { style: 'margin-top:14px' }, [h('button', { type: 'button', class: 'btn ghost small', onclick: function () { writeStore([]); mine.items = []; mine.rows = []; renderMine(); } }, ['Oublier mes rendez-vous sur cet appareil'])]));
+      g.appendChild(h('p', { style: 'margin-top:14px' }, [h('button', { type: 'button', class: 'btn ghost small', onclick: function () { writeStore([]); writeHidden([]); mine.items = []; mine.rows = []; mine.msg = ''; renderMine(); } }, ['Oublier mes rendez-vous sur cet appareil'])]));
       g.appendChild(h('p', { class: 'muted', style: 'font-size:.85rem;margin-top:6px', text: "Utile sur un téléphone partagé. Tes rendez-vous ne sont pas supprimés, seulement retirés de cet appareil." }));
     }
   }
 
   /* ---------- Démarrage ---------- */
   renderGallery();
+  API.get('gallery_photos?select=path,alt&order=created_at.desc&limit=60').then(function (rows) { addedPhotos = rows || []; renderGallery(); }, function () { /* galerie ajoutée indisponible : les photos du site restent affichées */ });
   Promise.all([
     API.get('salon_settings?select=*&id=eq.1'),
     API.get('services?select=*&active=eq.true&order=sort.asc,name.asc')
