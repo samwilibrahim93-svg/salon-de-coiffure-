@@ -23,5 +23,12 @@
   function hhmm(t) { var p = String(t || '').split(':'); return parseInt(p[0], 10) + 'h' + (p[1] || '00'); }
   function fcfa(n) { return new Intl.NumberFormat('fr-FR').format(n) + ' FCFA'; }
   function digits(s) { return String(s || '').replace(/\D/g, ''); }
-  window.U = { h: h, clear: clear, TZ: TZ, JOURS: JOURS, todayLocal: todayLocal, addDays: addDays, isoDow: isoDow, fmtDate: fmtDate, fmtTime: fmtTime, fmtDay: fmtDay, hhmm: hhmm, fcfa: fcfa, digits: digits };
+  function safePhoto(src) {
+    if (typeof src !== 'string') { return null; }
+    if (/^photos\/[\w.\-]{1,80}$/.test(src)) { return src; }
+    var base = window.SALON_CONFIG.url + '/storage/v1/object/public/prestations/';
+    if (src.indexOf(base) === 0 && /^[\w.\-]{1,120}$/.test(src.slice(base.length))) { return src; }
+    return null;
+  }
+  window.U = { safePhoto: safePhoto, h: h, clear: clear, TZ: TZ, JOURS: JOURS, todayLocal: todayLocal, addDays: addDays, isoDow: isoDow, fmtDate: fmtDate, fmtTime: fmtTime, fmtDay: fmtDay, hhmm: hhmm, fcfa: fcfa, digits: digits };
 })();

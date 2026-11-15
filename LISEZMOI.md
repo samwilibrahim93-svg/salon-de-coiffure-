@@ -24,7 +24,14 @@ Ensuite elle se connecte sur `admin.html` et complète : nom du salon, adresse, 
 3. « Paramètres » → « Pages » → source « Déployer à partir d'une branche », branche `principal` (ou `main`), dossier `/ (racine)` → « Sauvegarder ».
 4. Ton lien : https://TON-NOM.github.io/salon-parakou/ et l'espace gérante : .../admin.html
 
+## Nouveautés : Mes rendez-vous, heures libres, photos des prestations
+- **Mes rendez-vous** : après une réservation, la référence et le numéro sont gardés sur le téléphone de la cliente. À chaque visite (même après actualisation), ses rendez-vous et leur état (en attente / confirmé / annulé) s'affichent. Une autre personne ne voit jamais les rendez-vous d'une autre cliente. Changement de téléphone : « Retrouver un rendez-vous » avec la référence + le numéro.
+- **Jours et heures libres** : affichés sur la page pour les 7 prochains jours, à chaque visite. Toucher une heure la présélectionne.
+- **Photos des prestations** : dans l'espace gérante > Prestations, choisir une photo parmi celles du site ou en envoyer une nouvelle (réduite automatiquement). La photo apparaît sur la carte de la prestation et dans le choix de réservation.
+- Fichiers à remplacer sur GitHub : index.html, styles.css, config.js (inchangé), api.js, common.js, site.js, admin.js. La base de données est déjà à jour.
+
 ## Limites connues
+- Les rendez-vous mémorisés sont liés à l'appareil : si la cliente vide son navigateur, elle utilise « Retrouver un rendez-vous ».
 - Une demande « en attente » bloque le créneau tant que la gérante ne l'a pas confirmée ou annulée.
 - Pas d'annulation en ligne par la cliente : elle contacte le salon.
 - Pas de paiement en ligne (acompte non créé). À ajouter plus tard si le client le demande.

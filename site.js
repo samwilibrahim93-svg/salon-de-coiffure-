@@ -2,7 +2,9 @@
 (function () {
   var h = U.h, API = SalonAPI;
   var settings = null, services = [];
-  var st = { service: null, date: null, slot: null, slots: [], busy: false, place: 'sur_place', address: '' };
+  var st = { service: null, date: null, slot: null, slots: [], busy: false, place: 'sur_place', address: '', pending: null };
+  var avail = { rows: [], loading: true, error: null, token: 0 };
+  var KEY = 'rdv-items-v1';
   var box = document.getElementById('booking');
 
   var ERREURS = {
@@ -43,11 +45,14 @@
       return;
     }
     services.forEach(function (s) {
+      var ph = U.safePhoto(s.photo);
       g.appendChild(h('article', { class: 'card' }, [
+        ph ? h('img', { class: 'svc-img', src: ph, alt: s.name, loading: 'lazy' }) : null,
         h('h3', { text: s.name }),
         s.description ? h('p', { class: 'muted', text: s.description }) : null,
         h('p', { class: 'muted', text: 'Durée : environ ' + s.duration_min + ' min' }),
-        s.price_from_fcfa != null ? h('p', { class: 'price', text: 'À partir de ' + U.fcfa(s.price_from_fcfa) }) : null
+        s.price_from_fcfa != null ? h('p', { class: 'price', text: 'À partir de ' + U.fcfa(s.price_from_fcfa) }) : null,
+        h('button', { type: 'button', class: 'btn small', onclick: function () { chooseService(s); document.getElementById('reserver').scrollIntoView(); } }, ['Choisir cette coiffure'])
       ]));
     });
   }
@@ -104,9 +109,11 @@
     // 1. prestation
     var chips = h('div', { class: 'chips' });
     services.forEach(function (s) {
-      chips.appendChild(h('button', { type: 'button', class: 'chip', 'aria-pressed': st.service && st.service.id === s.id ? 'true' : 'false', onclick: function () {
-        st.service = s; st.date = null; st.slot = null; st.slots = []; st.notice = null; renderBooking();
-      } }, [s.name + (s.price_from_fcfa != null ? ' · dès ' + U.fcfa(s.price_from_fcfa) : '')]));
+      var ph = U.safePhoto(s.photo);
+      chips.appendChild(h('button', { type: 'button', class: ph ? 'svc-pick' : 'chip', 'aria-pressed': st.service && st.service.id === s.id ? 'true' : 'false', onclick: function () { chooseService(s); } }, [
+        ph ? h('img', { src: ph, alt: '' }) : null,
+        s.name + (s.price_from_fcfa != null ? ' · dès ' + U.fcfa(s.price_from_fcfa) : '')
+      ]));
     });
     box.appendChild(stepBox(1, 'Choisis ta prestation', false, [chips]));
 
@@ -169,12 +176,24 @@
     box.appendChild(stepBox(4, 'Tes coordonnées', !st.slot, [form]));
   }
 
-  function loadSlots() {
+  function chooseService(s) {
+    st.service = s; st.notice = null;
+    var p = st.pending; st.pending = null;
+    if (p) { st.date = p.date; st.slot = null; st.slots = []; loadSlots(p.slot); }
+    else { st.date = null; st.slot = null; st.slots = []; renderBooking(); }
+    loadAvail();
+  }
+
+  function loadSlots(keep) {
     st.loadingSlots = true; st.slotsError = null; st.slots = []; renderBooking();
     var wanted = st.date + '|' + st.service.id;
     API.rpc('get_available_slots', { p_date: st.date, p_service_id: st.service.id }).then(function (rows) {
       if (wanted !== st.date + '|' + st.service.id) { return; }
       st.slots = (rows || []).map(function (r) { return r.slot_start; });
+      if (keep) {
+        var k = st.slots.filter(function (t) { return new Date(t).getTime() === new Date(keep).getTime(); })[0];
+        if (k) { st.slot = k; } else { st.notice = "L'heure choisie n'est pas possible pour cette prestation (durée plus longue). Choisis une autre heure."; }
+      }
     }, function (e) { st.slotsError = errText(e); }).then(function () { st.loadingSlots = false; renderBooking(); });
   }
 
@@ -189,7 +208,9 @@
     API.rpc('create_booking', { p_service_id: st.service.id, p_starts_at: st.slot, p_name: nm, p_phone: ph, p_place: st.place, p_address: st.place === 'domicile' ? st.address.trim() : null }).then(function (rows) {
       var r = rows && rows[0];
       if (!r || !r.reference) { throw new Error('REPONSE_INVALIDE'); }
+      remember({ reference: r.reference, phone: ph });
       showDone(r, nm);
+      loadMine(); loadAvail();
     }, function (e) {
       st.busy = false; btn.disabled = false; btn.textContent = 'Envoyer ma demande';
       msg.className = 'msg bad'; msg.textContent = errText(e);
@@ -210,10 +231,134 @@
         settings.home_visits ? h('div', { text: st.place === 'domicile' ? 'À ton domicile' : 'Sur place' }) : null,
         h('div', { text: 'Référence : ' + r.reference })
       ]),
-      h('p', { class: 'msg info', text: "Important : ton rendez-vous n'est pas encore confirmé. Tu vas être contactée pour le confirmer. Garde ta référence." }),
+      h('p', { class: 'msg info', text: "Important : ton rendez-vous n'est pas encore confirmé. Tu vas être contactée pour le confirmer. Garde ta référence : tu retrouveras aussi ce rendez-vous dans « Mes rendez-vous » sur cet appareil." }),
       ph.length >= 8 ? h('a', { class: 'btn', target: '_blank', rel: 'noopener', href: 'https://wa.me/' + ph + '?text=' + encodeURIComponent('Bonjour, j\'ai fait une demande de rendez-vous. Référence ' + r.reference + '.') }, ['Prévenir le salon sur WhatsApp']) : null,
-      h('button', { type: 'button', class: 'btn ghost', onclick: function () { st = { service: null, date: null, slot: null, slots: [], busy: false, place: 'sur_place', address: '' }; renderBooking(); } }, ['Faire une autre demande'])
+      h('button', { type: 'button', class: 'btn ghost', onclick: function () { st = { service: null, date: null, slot: null, slots: [], busy: false, place: 'sur_place', address: '', pending: null }; renderBooking(); loadAvail(); } }, ['Faire une autre demande'])
     ]));
+  }
+
+  /* ---------- Disponibilités (visibles à chaque visite) ---------- */
+  function loadAvail() {
+    var my = ++avail.token;
+    avail.loading = true; avail.error = null; renderAvail();
+    API.rpc('get_availability', { p_service_id: st.service ? st.service.id : null, p_days: 7 }).then(function (rows) {
+      if (my !== avail.token) { return; }
+      avail.rows = rows || [];
+    }, function (e) { if (my === avail.token) { avail.error = errText(e); avail.rows = []; } }).then(function () {
+      if (my !== avail.token) { return; }
+      avail.loading = false; renderAvail();
+    });
+  }
+
+  function pickAvail(day, slot) {
+    if (st.service) {
+      st.date = day; st.slot = slot; st.notice = null;
+      st.slots = avail.rows.filter(function (r) { return r.day === day; }).map(function (r) { return r.slot_start; });
+      renderBooking();
+      document.getElementById('booking').scrollIntoView();
+    } else {
+      st.pending = { date: day, slot: slot };
+      st.notice = null;
+      var m = document.getElementById('avail-msg');
+      if (m) { m.className = 'msg info'; m.textContent = 'Le ' + U.fmtDate(day, true) + ' à ' + U.fmtTime(slot) + ' est noté. Choisis maintenant ta coiffure ci-dessous.'; }
+      document.getElementById('booking').scrollIntoView();
+    }
+  }
+
+  function renderAvail() {
+    var g = document.getElementById('avail'); if (!g) { return; }
+    U.clear(g);
+    g.appendChild(h('h3', { text: 'Jours et heures libres cette semaine' }));
+    g.appendChild(h('p', { class: 'muted', text: st.service ? 'Pour : ' + st.service.name + '. Touche une heure pour la réserver.' : 'Touche une heure pour la réserver. Les heures déjà prises ne sont pas affichées.' }));
+    g.appendChild(h('p', { id: 'avail-msg', role: 'status', class: 'msg' }));
+    if (avail.loading) { g.appendChild(h('p', { class: 'muted', text: 'Chargement des disponibilités…' })); return; }
+    if (avail.error) { g.appendChild(h('p', { class: 'msg bad', text: avail.error })); return; }
+    var days = [], by = {};
+    avail.rows.forEach(function (r) { if (!by[r.day]) { by[r.day] = []; days.push(r.day); } by[r.day].push(r.slot_start); });
+    if (!days.length) { g.appendChild(h('p', { class: 'empty', text: 'Aucune heure libre dans les 7 prochains jours. Écris au salon sur WhatsApp ou reviens bientôt.' })); return; }
+    var list = h('div', { style: 'display:flex;flex-direction:column;gap:8px;margin-top:10px' });
+    days.forEach(function (d, i) {
+      var chips = h('div', { class: 'chips' });
+      by[d].forEach(function (t) { chips.appendChild(h('button', { type: 'button', class: 'chip', onclick: function () { pickAvail(d, t); } }, [U.fmtTime(t)])); });
+      var det = h('details', { class: 'day' }, [h('summary', {}, [U.fmtDate(d, true), ' ', h('span', { text: '· ' + by[d].length + ' heure' + (by[d].length > 1 ? 's' : '') + ' libre' + (by[d].length > 1 ? 's' : '') })]), chips]);
+      if (i === 0) { det.setAttribute('open', ''); }
+      list.appendChild(det);
+    });
+    g.appendChild(list);
+  }
+
+  /* ---------- Mes rendez-vous (mémorisés sur cet appareil) ---------- */
+  var mine = { items: [], rows: [], loading: false, error: null, lookupMsg: '' };
+
+  function readStore() {
+    try {
+      var v = JSON.parse(localStorage.getItem(KEY) || '[]');
+      return (Array.isArray(v) ? v : []).filter(function (x) { return x && typeof x.reference === 'string' && typeof x.phone === 'string'; }).slice(0, 10);
+    } catch (e) { return []; }
+  }
+  function writeStore(items) { try { localStorage.setItem(KEY, JSON.stringify(items.slice(0, 10))); } catch (e) { /* stockage indisponible */ } }
+  function remember(it) {
+    var list = readStore().filter(function (x) { return x.reference.toUpperCase() !== String(it.reference).toUpperCase(); });
+    list.unshift({ reference: String(it.reference).toUpperCase(), phone: U.digits(it.phone) });
+    writeStore(list); mine.items = list.slice(0, 10);
+  }
+  var STATUT = { pending: ['En attente de confirmation', 'info'], confirmed: ['Confirmé', 'ok'], cancelled: ['Annulé', 'bad'] };
+
+  function loadMine() {
+    mine.items = readStore();
+    if (!mine.items.length) { mine.rows = []; mine.loading = false; renderMine(); return; }
+    mine.loading = true; mine.error = null; renderMine();
+    API.rpc('get_my_bookings', { p_items: mine.items }).then(function (rows) { mine.rows = rows || []; }, function (e) { mine.error = errText(e); }).then(function () { mine.loading = false; renderMine(); });
+  }
+
+  function lookup(refEl, phEl) {
+    var ref = refEl.value.trim().toUpperCase(), ph = U.digits(phEl.value);
+    if (ref.length < 4 || ph.length < 8) { mine.lookupMsg = 'Écris ta référence et le numéro utilisé pour réserver.'; renderMine(); return; }
+    API.rpc('get_my_bookings', { p_items: [{ reference: ref, phone: ph }] }).then(function (rows) {
+      if (rows && rows.length) { remember({ reference: ref, phone: ph }); mine.lookupMsg = ''; loadMine(); }
+      else { mine.lookupMsg = 'Aucun rendez-vous trouvé. Vérifie la référence et le numéro de téléphone.'; renderMine(); }
+    }, function (e) { mine.lookupMsg = errText(e); renderMine(); });
+  }
+
+  function renderMine() {
+    var g = document.getElementById('mine'); if (!g) { return; }
+    U.clear(g);
+    if (mine.loading) { g.appendChild(h('p', { class: 'muted', text: 'Chargement de tes rendez-vous…' })); }
+    else if (mine.error) { g.appendChild(h('p', { class: 'msg bad', text: mine.error })); }
+    else if (!mine.rows.length) { g.appendChild(h('p', { class: 'muted', text: "Tu n'as pas encore de rendez-vous sur cet appareil. Quand tu réserves, il apparaît ici à chaque visite." })); }
+    var now = Date.now();
+    var wrap = h('div', { style: 'display:flex;flex-direction:column;gap:12px;margin-top:6px' });
+    mine.rows.slice().sort(function (a, b) {
+      var pa = new Date(a.ends_at) < now, pb = new Date(b.ends_at) < now;
+      if (pa !== pb) { return pa ? 1 : -1; }
+      return (new Date(a.starts_at) - new Date(b.starts_at)) * (pa ? -1 : 1);
+    }).forEach(function (r) {
+      var sv = STATUT[r.status] || [r.status, 'info'];
+      var past = new Date(r.ends_at) < now;
+      wrap.appendChild(h('div', { class: 'mine-card', style: past ? 'opacity:.7' : null }, [
+        h('b', { text: r.service_name }),
+        h('div', { text: U.fmtDate(U.fmtDay(r.starts_at), true) + ' à ' + U.fmtTime(r.starts_at) + (past ? ' (passé)' : '') }),
+        h('div', { class: 'muted', text: (r.place === 'domicile' ? 'À ton domicile' : 'Sur place') + ' · Réf. ' + r.reference }),
+        h('span', { class: 'msg ' + sv[1], style: 'align-self:flex-start;padding:4px 10px;font-size:.9rem', text: sv[0] })
+      ]));
+    });
+    g.appendChild(wrap);
+    // retrouver un rendez-vous (autre appareil, navigateur vidé)
+    var ref = h('input', { id: 'm-ref', type: 'text', maxlength: '20', autocomplete: 'off', placeholder: 'Ex : AB12CD34' });
+    var ph = h('input', { id: 'm-phone', type: 'tel', inputmode: 'tel', autocomplete: 'tel', placeholder: 'Le numéro utilisé pour réserver' });
+    var f = h('form', { novalidate: true, style: 'margin-top:22px', class: 'card' }, [
+      h('h3', { text: 'Retrouver un rendez-vous' }),
+      h('p', { class: 'muted', text: "Tu as changé de téléphone ou vidé ton navigateur ? Entre ta référence et ton numéro." }),
+      h('div', { class: 'inline' }, [h('div', { class: 'field' }, [h('label', { for: 'm-ref', text: 'Référence' }), ref]), h('div', { class: 'field' }, [h('label', { for: 'm-phone', text: 'Ton numéro' }), ph])]),
+      h('p', { class: 'msg ' + (mine.lookupMsg ? 'bad' : ''), role: 'alert', text: mine.lookupMsg }),
+      h('button', { type: 'submit', class: 'btn small' }, ['Retrouver'])
+    ]);
+    f.addEventListener('submit', function (e) { e.preventDefault(); lookup(ref, ph); });
+    g.appendChild(f);
+    if (mine.items.length) {
+      g.appendChild(h('p', { style: 'margin-top:14px' }, [h('button', { type: 'button', class: 'btn ghost small', onclick: function () { writeStore([]); mine.items = []; mine.rows = []; renderMine(); } }, ['Oublier mes rendez-vous sur cet appareil'])]));
+      g.appendChild(h('p', { class: 'muted', style: 'font-size:.85rem;margin-top:6px', text: "Utile sur un téléphone partagé. Tes rendez-vous ne sont pas supprimés, seulement retirés de cet appareil." }));
+    }
   }
 
   /* ---------- Démarrage ---------- */
@@ -224,9 +369,10 @@
   ]).then(function (res) {
     settings = (res[0] && res[0][0]) || { open_days: [1, 2, 3, 4, 6, 7], open_time: '08:00', close_time: '18:30', max_days_ahead: 30 };
     services = res[1] || [];
-    renderHeader(); renderServices(); renderInfos(); renderBooking();
+    renderHeader(); renderServices(); renderInfos(); renderBooking(); loadAvail(); loadMine();
   }, function () {
     settings = { open_days: [], max_days_ahead: 1 };
+    avail.loading = false; avail.error = 'Impossible de charger les disponibilités.'; renderAvail(); loadMine();
     U.clear(box);
     box.appendChild(h('div', { class: 'msg bad', text: "Impossible de charger le salon pour l'instant. Vérifie ta connexion et recharge la page." }));
   });

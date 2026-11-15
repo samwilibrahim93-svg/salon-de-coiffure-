@@ -43,6 +43,17 @@
       token = null;
       try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) { /* rien */ }
     },
+    upload: function (bucket, name, blob) {
+      return fetch(C.url + '/storage/v1/object/' + bucket + '/' + name, {
+        method: 'POST',
+        headers: { 'apikey': C.key, 'Authorization': 'Bearer ' + token, 'Content-Type': blob.type, 'x-upsert': 'false' },
+        body: blob
+      }).then(function (r) {
+        if (r.ok) { return true; }
+        return r.text().then(function (t) { var e = new Error(t || ('HTTP ' + r.status)); e.status = r.status; throw e; });
+      }, function () { var e = new Error('RESEAU'); e.status = 0; throw e; });
+    },
+    publicUrl: function (bucket, name) { return C.url + '/storage/v1/object/public/' + bucket + '/' + name; },
     hasToken: function () { return !!token; }
   };
 })();

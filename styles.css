@@ -76,3 +76,14 @@ footer { padding-block: 28px; color: var(--muted); font-size: .92rem; border-top
 .inline { display: flex; flex-wrap: wrap; gap: 12px; }
 .inline .field { flex: 1 1 160px; }
 .hp { position: absolute; left: -9999px; }
+
+.svc-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: 50% 25%; border-radius: 14px; background: var(--rose-soft); }
+.svc-pick { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--bg); font: 600 .95rem var(--body); cursor: pointer; color: var(--fg); text-align: left; }
+.svc-pick[aria-pressed="true"] { background: var(--plum); color: var(--plum-ink); border-color: var(--plum); }
+.svc-pick img { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; object-position: 50% 25%; flex: none; }
+details.day { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 10px 14px; }
+details.day summary { cursor: pointer; font-weight: 700; }
+details.day summary span { font-weight: 400; color: var(--muted); }
+details.day .chips { margin-top: 10px; }
+.mine-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; }
+.thumb { display: block; border-radius: 12px; border: 1px solid var(--line); }

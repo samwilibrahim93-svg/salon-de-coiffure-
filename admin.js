@@ -84,11 +84,65 @@
     }, function (e) { show(m, fail(e), false); });
   }
 
+  /* ---------- Photos des prestations ---------- */
+  function resizeToJpeg(file) {
+    return new Promise(function (resolve, reject) {
+      if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { reject(new Error('FORMAT')); return; }
+      if (file.size > 15 * 1024 * 1024) { reject(new Error('TROP_GROS')); return; }
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 900 / Math.max(img.width, img.height));
+        var c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error('CONVERSION')); }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('FORMAT')); };
+      img.src = url;
+    });
+  }
+  function photoErr(e) {
+    var m = String((e && e.message) || '');
+    if (m === 'FORMAT') { return 'Photo non lisible. Utilise une image JPG, PNG ou WebP.'; }
+    if (m === 'TROP_GROS') { return 'Photo trop lourde (15 Mo maximum).'; }
+    return fail(e);
+  }
+  /* Panneau de choix : photos du site + envoi d'une nouvelle photo. onPick(valeur) est appelé avec le chemin choisi. */
+  function photoPicker(onPick, msg) {
+    var grid = h('div', { class: 'chips', style: 'margin-top:8px' });
+    (window.SALON_PHOTOS || []).forEach(function (p) {
+      var src = U.safePhoto(p && p.src); if (!src) { return; }
+      grid.appendChild(h('button', { type: 'button', class: 'svc-pick', 'aria-label': 'Choisir cette photo', onclick: function () { onPick(src); } }, [h('img', { src: src, alt: p.alt || 'Photo' })]));
+    });
+    var file = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', 'aria-label': 'Envoyer une nouvelle photo' });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0]; if (!f) { return; }
+      show(msg, 'Envoi de la photo…', true);
+      resizeToJpeg(f).then(function (blob) {
+        var name = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+        return API.upload('prestations', name, blob).then(function () { onPick(API.publicUrl('prestations', name)); });
+      }).then(null, function (e) { show(msg, photoErr(e), false); });
+    });
+    return h('div', { class: 'card' }, [h('b', { text: 'Choisir une photo' }), grid, h('div', { class: 'field', style: 'margin-top:10px' }, [h('label', { text: 'Ou envoyer une nouvelle photo' }), file])]);
+  }
+
   /* ---------- Prestations ---------- */
   function tabServices(body) {
     var m = msgBox(); var list = h('div', { class: 'list' });
     var name = h('input', { id: 's-name', maxlength: '80' }), dur = h('input', { id: 's-dur', type: 'number', min: '10', max: '480', step: '5', inputmode: 'numeric' });
     var price = h('input', { id: 's-price', type: 'number', min: '0', step: '500', inputmode: 'numeric' }), desc = h('input', { id: 's-desc', maxlength: '300' });
+    var newPhoto = null, photoBox = h('div', { class: 'field' });
+    function drawNewPhoto() {
+      U.clear(photoBox);
+      photoBox.appendChild(h('label', { text: 'Photo de la coiffure (facultatif)' }));
+      var ok = U.safePhoto(newPhoto);
+      if (ok) {
+        photoBox.appendChild(h('img', { class: 'thumb', src: ok, alt: 'Photo choisie', width: '120', height: '120', style: 'object-fit:cover;object-position:50% 25%' }));
+        photoBox.appendChild(h('button', { type: 'button', class: 'btn small ghost', onclick: function () { newPhoto = null; drawNewPhoto(); } }, ['Retirer la photo']));
+      } else {
+        photoBox.appendChild(photoPicker(function (v) { newPhoto = v; drawNewPhoto(); }, m));
+      }
+    }
     var add = h('form', { class: 'step', novalidate: true }, [
       h('h3', { text: 'Ajouter une prestation' }),
       h('div', { class: 'inline' }, [
@@ -96,6 +150,7 @@
         h('div', { class: 'field' }, [h('label', { for: 's-dur', text: 'Durée (minutes)' }), dur]),
         h('div', { class: 'field' }, [h('label', { for: 's-price', text: 'Prix « à partir de » (FCFA)' }), price])]),
       h('div', { class: 'field' }, [h('label', { for: 's-desc', text: 'Description (facultatif)' }), desc]),
+      photoBox,
       h('button', { class: 'btn', type: 'submit' }, ['Ajouter'])]);
     add.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -103,22 +158,28 @@
       if (name.value.trim().length < 2) { show(m, 'Écris le nom de la prestation.', false); return; }
       if (!(d >= 10 && d <= 480)) { show(m, 'La durée doit être entre 10 et 480 minutes.', false); return; }
       if (p !== null && !(p >= 0)) { show(m, 'Le prix doit être un nombre positif.', false); return; }
-      API.insert('services', { name: name.value.trim(), duration_min: d, price_from_fcfa: p, description: desc.value.trim() || null }).then(renderShell, function (er) { show(m, fail(er), false); });
+      API.insert('services', { name: name.value.trim(), duration_min: d, price_from_fcfa: p, description: desc.value.trim() || null, photo: U.safePhoto(newPhoto) }).then(renderShell, function (er) { show(m, fail(er), false); });
     });
+    drawNewPhoto();
     body.appendChild(add); body.appendChild(m); body.appendChild(h('div', { style: 'height:14px' })); body.appendChild(list);
     API.get('services?select=*&order=sort.asc,name.asc').then(function (rows) {
       if (!rows.length) { list.appendChild(h('div', { class: 'empty', text: 'Aucune prestation. Ajoute la première ci-dessus.' })); return; }
       rows.forEach(function (s) {
+        var pv = U.safePhoto(s.photo), panel = h('div');
+        function setPhoto(v) { API.patch('services?id=eq.' + s.id, { photo: v }).then(renderShell, function (e) { show(m, photoErr(e), false); }); }
         list.appendChild(h('article', { class: 'item' }, [
+          pv ? h('img', { class: 'thumb', src: pv, alt: s.name, width: '96', height: '96', style: 'object-fit:cover;object-position:50% 25%' }) : null,
           h('div', { class: 'row' }, [h('b', { text: s.name }), h('span', { class: 'badge ' + (s.active ? 'confirmed' : 'cancelled'), text: s.active ? 'Visible' : 'Masquée' })]),
           h('div', { class: 'muted', text: s.duration_min + ' min' + (s.price_from_fcfa != null ? ' · dès ' + U.fcfa(s.price_from_fcfa) : '') }),
           h('div', { class: 'row' }, [
+            h('button', { class: 'btn small ghost', type: 'button', onclick: function () { U.clear(panel); panel.appendChild(photoPicker(setPhoto, m)); } }, [pv ? 'Changer la photo' : 'Ajouter une photo']),
+            pv ? h('button', { class: 'btn small ghost', type: 'button', onclick: function () { setPhoto(null); } }, ['Retirer la photo']) : null,
             h('button', { class: 'btn small ghost', type: 'button', onclick: function () { API.patch('services?id=eq.' + s.id, { active: !s.active }).then(renderShell, function (e) { show(m, fail(e), false); }); } }, [s.active ? 'Masquer' : 'Afficher']),
             h('button', { class: 'btn small danger', type: 'button', onclick: function (ev) {
               var b = ev.currentTarget;
               if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Confirmer la suppression'; return; }
               API.remove('services?id=eq.' + s.id).then(renderShell, function (e) { show(m, fail(e), false); });
-            } }, ['Supprimer'])])]));
+            } }, ['Supprimer'])]), panel]));
       });
     }, function (e) { show(m, fail(e), false); });
   }
