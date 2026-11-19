@@ -411,17 +411,31 @@
   /* ---------- Démarrage ---------- */
   renderGallery();
   API.get('gallery_photos?select=path,alt&order=created_at.desc&limit=60').then(function (rows) { addedPhotos = rows || []; renderGallery(); }, function () { /* galerie ajoutée indisponible : les photos du site restent affichées */ });
-  Promise.all([
-    API.get('salon_settings?select=*&id=eq.1'),
-    API.get('services?select=*&active=eq.true&order=sort.asc,name.asc')
-  ]).then(function (res) {
-    settings = (res[0] && res[0][0]) || { open_days: [1, 2, 3, 4, 6, 7], open_time: '08:00', close_time: '18:30', max_days_ahead: 30 };
-    services = res[1] || [];
+  /* Les réglages et les prestations se chargent séparément : si l'un échoue, l'autre s'affiche quand même
+     (les photos de la page d'accueil viennent des réglages, elles ne doivent pas disparaître à cause des prestations). */
+  var DEFAUT = { open_days: [1, 2, 3, 4, 6, 7], open_time: '08:00', close_time: '18:30', max_days_ahead: 30 };
+  var okSettings = false, okServices = false, doneCount = 0;
+  function afterLoad() {
+    doneCount++;
+    if (doneCount < 2) { return; }
+    if (!okSettings && !okServices) {
+      settings = { open_days: [], max_days_ahead: 1 };
+      avail.loading = false; avail.error = 'Impossible de charger les disponibilités.'; renderAvail(); loadMine(); renderGallery();
+      U.clear(box);
+      box.appendChild(h('div', { class: 'msg bad', text: "Impossible de charger le salon pour l'instant. Vérifie ta connexion et recharge la page." }));
+      return;
+    }
+    if (!okSettings) { settings = DEFAUT; }
     renderHeader(); renderGallery(); renderServices(); renderInfos(); renderBooking(); loadAvail(); loadMine();
-  }, function () {
-    settings = { open_days: [], max_days_ahead: 1 };
-    avail.loading = false; avail.error = 'Impossible de charger les disponibilités.'; renderAvail(); loadMine(); renderGallery();
-    U.clear(box);
-    box.appendChild(h('div', { class: 'msg bad', text: "Impossible de charger le salon pour l'instant. Vérifie ta connexion et recharge la page." }));
-  });
+    if (!okServices) {
+      U.clear(box);
+      box.appendChild(h('div', { class: 'msg bad', text: "Les prestations ne se sont pas chargées. Recharge la page." }));
+    }
+  }
+  API.get('salon_settings?select=*&id=eq.1').then(function (rows) {
+    settings = (rows && rows[0]) || DEFAUT; okSettings = true; afterLoad();
+  }, function () { afterLoad(); });
+  API.get('services?select=*&active=eq.true&order=sort.asc,name.asc').then(function (rows) {
+    services = rows || []; okServices = true; afterLoad();
+  }, function () { afterLoad(); });
 })();
