@@ -181,3 +181,9 @@ details.day .chips { margin-top: 10px; }
 
 .foot-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; }
 .credit { margin-left: auto; text-align: right; }
+
+/* Mot de passe : bouton Afficher / Masquer */
+.pw-wrap { position: relative; display: flex; }
+.pw-wrap input { flex: 1 1 auto; min-width: 0; padding-right: 5.6rem; }
+.pw-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); min-height: 34px; padding: 0 12px; border: 1px solid var(--line, #d8d0c8); border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; }
+.pw-eye:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

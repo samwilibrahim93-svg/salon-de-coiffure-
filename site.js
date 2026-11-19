@@ -59,6 +59,7 @@
   }
 
   var addedPhotos = [];
+  var snap = { settings: '', services: '', gallery: '', avail: '', mine: '' };
   function allPhotos() {
     var list = addedPhotos.map(function (r) { return { src: r.path, alt: r.alt }; }).concat(window.SALON_PHOTOS || []);
     var hid = (settings && settings.hidden_photos) || [];
@@ -261,7 +262,7 @@
     avail.loading = true; avail.error = null; renderAvail();
     API.rpc('get_availability', { p_service_id: st.service ? st.service.id : null, p_days: 7 }).then(function (rows) {
       if (my !== avail.token) { return; }
-      avail.rows = rows || [];
+      avail.rows = rows || []; snap.avail = JSON.stringify(avail.rows);
     }, function (e) { if (my === avail.token) { avail.error = errText(e); avail.rows = []; } }).then(function () {
       if (my !== avail.token) { return; }
       avail.loading = false; renderAvail();
@@ -334,7 +335,7 @@
     mine.items = readStore();
     if (!mine.items.length) { mine.rows = []; mine.loading = false; renderMine(); return; }
     mine.loading = true; mine.error = null; renderMine();
-    API.rpc('get_my_bookings', { p_items: mine.items }).then(function (rows) { mine.rows = rows || []; }, function (e) { mine.error = errText(e); }).then(function () { mine.loading = false; renderMine(); });
+    API.rpc('get_my_bookings', { p_items: mine.items }).then(function (rows) { mine.rows = rows || []; snap.mine = JSON.stringify(mine.rows); }, function (e) { mine.error = errText(e); }).then(function () { mine.loading = false; renderMine(); });
   }
 
   function lookup(nameEl, phEl) {
@@ -410,7 +411,7 @@
 
   /* ---------- Démarrage ---------- */
   renderGallery();
-  API.get('gallery_photos?select=path,alt&order=created_at.desc&limit=60').then(function (rows) { addedPhotos = rows || []; renderGallery(); }, function () { /* galerie ajoutée indisponible : les photos du site restent affichées */ });
+  API.get('gallery_photos?select=path,alt&order=created_at.desc&limit=60').then(function (rows) { addedPhotos = rows || []; snap.gallery = JSON.stringify(addedPhotos); renderGallery(); }, function () { /* galerie ajoutée indisponible : les photos du site restent affichées */ });
   /* Les réglages et les prestations se chargent séparément : si l'un échoue, l'autre s'affiche quand même
      (les photos de la page d'accueil viennent des réglages, elles ne doivent pas disparaître à cause des prestations). */
   var DEFAUT = { open_days: [1, 2, 3, 4, 6, 7], open_time: '08:00', close_time: '18:30', max_days_ahead: 30 };
@@ -433,9 +434,72 @@
     }
   }
   API.get('salon_settings?select=*&id=eq.1').then(function (rows) {
-    settings = (rows && rows[0]) || DEFAUT; okSettings = true; afterLoad();
+    settings = (rows && rows[0]) || DEFAUT; okSettings = true; snap.settings = JSON.stringify(settings); afterLoad();
   }, function () { afterLoad(); });
   API.get('services?select=*&active=eq.true&order=sort.asc,name.asc').then(function (rows) {
-    services = rows || []; okServices = true; afterLoad();
+    services = rows || []; okServices = true; snap.services = JSON.stringify(services); afterLoad();
   }, function () { afterLoad(); });
+  /* ---------- Actualisation automatique (toutes les 15 secondes) ----------
+     Le site relit les réglages, les prestations, la galerie, les heures libres et « Mes rendez-vous ».
+     Il ne redessine que ce qui a changé, et ne touche pas à une réservation en cours de saisie.
+     En cas d'erreur réseau, l'affichage actuel est conservé. Rien n'est relu quand l'onglet est caché. */
+  var DELAI = Number(window.SALON_REFRESH_MS) || 15000, refreshing = false;
+  function soft(p) { return p.then(function (v) { return { ok: true, v: v }; }, function () { return { ok: false }; }); }
+  function enSaisie() {
+    var a = document.activeElement;
+    return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+  }
+  function refresh() {
+    if (document.hidden || refreshing || st.busy || !settings) { return; }
+    refreshing = true;
+    var wantMine = mine.items.length && !mine.loading && mine.armed == null;
+    Promise.all([
+      soft(API.get('salon_settings?select=*&id=eq.1')),
+      soft(API.get('services?select=*&active=eq.true&order=sort.asc,name.asc')),
+      soft(API.get('gallery_photos?select=path,alt&order=created_at.desc&limit=60')),
+      soft(API.rpc('get_availability', { p_service_id: st.service ? st.service.id : null, p_days: 7 })),
+      wantMine ? soft(API.rpc('get_my_bookings', { p_items: mine.items })) : Promise.resolve({ ok: false })
+    ]).then(function (r) {
+      var recovered = (!okSettings || !okServices) && r[0].ok && r[1].ok;
+      var chS = false, chV = false;
+      if (r[0].ok) {
+        var ns = (r[0].v && r[0].v[0]) || DEFAUT, js = JSON.stringify(ns);
+        if (js !== snap.settings) { settings = ns; snap.settings = js; chS = true; }
+        okSettings = true;
+      }
+      if (r[1].ok) {
+        var nv = r[1].v || [], jv = JSON.stringify(nv);
+        if (jv !== snap.services) { services = nv; snap.services = jv; chV = true; }
+        okServices = true;
+      }
+      if (recovered) {
+        renderHeader(); renderGallery(); renderServices(); renderInfos(); renderBooking(); loadAvail();
+        return;
+      }
+      if (r[2].ok) {
+        var ng = r[2].v || [], jg = JSON.stringify(ng);
+        if (jg !== snap.gallery) { addedPhotos = ng; snap.gallery = jg; chS = true; }
+      }
+      if (chS) { renderHeader(); renderGallery(); renderInfos(); }
+      if (chV) {
+        renderServices();
+        if (!st.service && !st.date && !st.slot && !st.pending && !enSaisie()) { renderBooking(); }
+      }
+      if (r[3].ok && !avail.loading && !avail.error) {
+        var na = r[3].v || [], ja = JSON.stringify(na);
+        if (ja !== snap.avail) {
+          var g = document.getElementById('avail');
+          var ouverts = g ? [].map.call(g.querySelectorAll('details'), function (d) { return d.open; }) : [];
+          avail.rows = na; snap.avail = ja; renderAvail();
+          if (g) { [].forEach.call(g.querySelectorAll('details'), function (d, i) { if (i < ouverts.length) { d.open = ouverts[i]; } }); }
+        }
+      }
+      if (wantMine && r[4].ok && !enSaisie() && mine.armed == null) {
+        var nm = r[4].v || [], jm = JSON.stringify(nm);
+        if (jm !== snap.mine) { mine.rows = nm; snap.mine = jm; renderMine(); }
+      }
+    }).then(function () { refreshing = false; }, function () { refreshing = false; });
+  }
+  setInterval(refresh, DELAI);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { refresh(); } });
 })();

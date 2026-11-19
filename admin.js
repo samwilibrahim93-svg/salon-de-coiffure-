@@ -24,11 +24,19 @@
     var m = msgBox(); if (note) { show(m, note, false); }
     var email = h('input', { type: 'email', id: 'em', autocomplete: 'username', required: true });
     var pw = h('input', { type: 'password', id: 'pw', autocomplete: 'current-password', required: true });
+    var eye = h('button', { type: 'button', class: 'pw-eye', 'aria-pressed': 'false', 'aria-label': 'Afficher le mot de passe' }, ['Afficher']);
+    eye.addEventListener('click', function () {
+      var vu = pw.type === 'text';
+      pw.type = vu ? 'password' : 'text';
+      eye.textContent = vu ? 'Afficher' : 'Masquer';
+      eye.setAttribute('aria-pressed', vu ? 'false' : 'true');
+      eye.setAttribute('aria-label', vu ? 'Afficher le mot de passe' : 'Masquer le mot de passe');
+    });
     var btn = h('button', { class: 'btn', type: 'submit' }, ['Se connecter']);
     var f = h('form', { class: 'step', style: 'max-width:420px' }, [
       h('h2', { text: 'Connexion' }),
       h('div', { class: 'field' }, [h('label', { for: 'em', text: 'Email' }), email]),
-      h('div', { class: 'field' }, [h('label', { for: 'pw', text: 'Mot de passe' }), pw]),
+      h('div', { class: 'field' }, [h('label', { for: 'pw', text: 'Mot de passe' }), h('div', { class: 'pw-wrap' }, [pw, eye])]),
       m, btn]);
     f.addEventListener('submit', function (e) {
       e.preventDefault(); btn.disabled = true;
